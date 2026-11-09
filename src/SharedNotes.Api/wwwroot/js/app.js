@@ -13,8 +13,9 @@ class ApiError extends Error {
 }
 
 async function api(method, path, body) {
-  const headers = body === undefined ? {} : { 'Content-Type': 'application/json' };
-  const res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const isForm = body instanceof FormData;   // file uploads: let the browser set the multipart boundary
+  const headers = body === undefined || isForm ? {} : { 'Content-Type': 'application/json' };
+  const res = await fetch(path, { method, headers, body: body === undefined || isForm ? body : JSON.stringify(body) });
   if (res.status === 204) return null;
   const data = await res.json().catch(() => null);
   if (res.status === 401 && state.me && !path.startsWith('/api/auth/')) {
@@ -109,6 +110,7 @@ function renderNotes(notes) {
         ...n.topics.map((t) => el('span', { className: 'tag', textContent: t.name })),
         el('span', { textContent: `By ${n.createdByName}` }),
         el('span', { textContent: `Updated ${new Date(n.updatedAt).toLocaleString()} by ${n.updatedByName}` })),
+      ...(n.attachments.length ? [el('div', { className: 'meta files' }, el('span', { textContent: 'Files:' }), ...n.attachments.map((a) => attachmentLinkFor(n.noteId, a)))] : []),
       el('div', { className: 'actions' }));
     const actions = li.querySelector('.actions');
     actions.append(el('button', { type: 'button', textContent: 'Edit', onclick: () => openEditor(n.noteId) }));
@@ -143,6 +145,8 @@ function populateEditor(note) {
     return el('label', {}, box, t.name);
   }));
   updateTeamRow();
+  $('attachments-box').classList.toggle('hidden', !note);   // files can be added once the note exists
+  renderAttachmentList(note?.attachments ?? []);
   setEditorError('');
   $('reload-note').classList.add('hidden');
   $('save').disabled = false;
@@ -448,3 +452,58 @@ function renderPager(total, pages) {
 function goToPage(delta) { state.page += delta; loadNotes(); }
 $('prev-page').addEventListener('click', () => goToPage(-1));
 $('next-page').addEventListener('click', () => goToPage(1));
+
+// ---------- Attachments ----------
+
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+
+function renderAttachmentList(attachments) {
+  $('a-list').replaceChildren(...attachments.map((a) => el('li', {},
+    attachmentLinkFor(state.editing?.noteId, a),
+    el('button', { type: 'button', className: 'danger', textContent: 'Remove', onclick: () => removeAttachment(a) }))));
+}
+
+// Downloads go through the authorized API (the session cookie is sent); the server forces a download.
+function attachmentLinkFor(noteId, a) {
+  return el('a', { href: `/api/notes/${noteId}/attachments/${a.attachmentId}`, textContent: `${a.fileName} (${formatSize(a.sizeBytes)})` });
+}
+
+async function reloadAttachments() {
+  const noteId = state.editing.noteId;
+  renderAttachmentList(await api('GET', `/api/notes/${noteId}/attachments`));
+  await loadNotes();
+}
+
+async function onAttachmentChosen() {
+  const file = $('a-file').files[0];
+  if (!file || !state.editing) return;
+  setEditorError('');
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    await api('POST', `/api/notes/${state.editing.noteId}/attachments`, form);
+    showMessage('File attached.');
+    await reloadAttachments();
+  } catch (e) {
+    setEditorError(e.message);
+  } finally {
+    $('a-file').value = '';
+  }
+}
+
+async function removeAttachment(a) {
+  if (!confirm(`Remove "${a.fileName}"?`)) return;
+  try {
+    await api('DELETE', `/api/notes/${state.editing.noteId}/attachments/${a.attachmentId}`);
+    showMessage('File removed.');
+    await reloadAttachments();
+  } catch (e) {
+    setEditorError(e.message);
+  }
+}
+
+$('a-file').addEventListener('change', onAttachmentChosen);

@@ -110,3 +110,20 @@ public class NoteTopicConfiguration : IEntityTypeConfiguration<NoteTopic>
         b.HasData(SeedData.NoteTopics);
     }
 }
+
+public class NoteAttachmentConfiguration : IEntityTypeConfiguration<NoteAttachment>
+{
+    public void Configure(EntityTypeBuilder<NoteAttachment> b)
+    {
+        b.HasKey(a => a.AttachmentId);
+        b.Property(a => a.FileName).IsRequired().HasMaxLength(150);
+        b.Property(a => a.ContentType).IsRequired().HasMaxLength(100);
+        b.Property(a => a.StoredName).IsRequired().HasMaxLength(64);
+        b.HasIndex(a => a.StoredName).IsUnique();
+        // Attachment rows go with their note (the service also removes the files). Uploaders cannot be deleted while referenced.
+        b.HasOne(a => a.Note).WithMany(n => n.Attachments).HasForeignKey(a => a.NoteId).OnDelete(DeleteBehavior.Cascade);
+        b.HasOne(a => a.UploadedBy).WithMany().HasForeignKey(a => a.UploadedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(a => a.NoteId);
+        b.HasIndex(a => a.UploadedByEmployeeId);
+    }
+}

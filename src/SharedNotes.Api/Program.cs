@@ -17,7 +17,9 @@ builder.Services.AddSingleton<PresenceTracker>();
 builder.Services.AddHostedService<PresenceSweeper>();
 builder.Services.AddScoped<CurrentEmployeeAccessor>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddSingleton<AttachmentStorage>();
 builder.Services.AddScoped<NoteService>();
+builder.Services.AddScoped<AttachmentService>();
 builder.Services.AddScoped<TeamService>();
 builder.Services.AddScoped<EmployeeService>();
 builder.Services.AddScoped<TopicService>();
@@ -67,6 +69,16 @@ await using (var scope = app.Services.CreateAsyncScope())
     await DemoSeeder.SeedPasswordsAsync(db, app.Configuration);
 }
 
+// Baseline browser hardening: no MIME sniffing, no framing, no referrer leakage, and only same-origin resources.
+app.Use(async (context, next) =>
+{
+    var h = context.Response.Headers;
+    h["X-Content-Type-Options"] = "nosniff";
+    h["X-Frame-Options"] = "DENY";
+    h["Referrer-Policy"] = "no-referrer";
+    h["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; base-uri 'self'";
+    await next();
+});
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseDefaultFiles();
 app.UseStaticFiles();

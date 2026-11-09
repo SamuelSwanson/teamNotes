@@ -52,6 +52,7 @@ tests/SharedNotes.Tests/
 - **Topics** – `TopicId`, `Name` (unique, case-insensitive), `Description?`.
 - **NoteTopics** – join table, composite key (`NoteId`, `TopicId`).
 - **NoteRevisions** – one immutable snapshot per create/update (title, content, visibility, team name, topic names, the note `Version` it produced, who and when). Cascade-deleted with the note.
+- **NoteAttachments** – metadata for files attached to a note (sanitized display name, allow-listed content type, size, random on-disk name, uploader). The bytes are stored on disk, not in SQLite. Cascade-deleted with the note (the files are removed too).
 
 Delete behaviour: deleting a note, topic, team or employee **cascades only to join rows** (`NoteTopics`, `TeamMembers`). Notes reference employees and teams with `RESTRICT`, so nobody can be deleted out from under a note. (There are no endpoints to delete employees or teams.)
 
@@ -65,6 +66,7 @@ erDiagram
     Topics ||--o{ NoteTopics : "applied to"
     Notes ||--o{ NoteRevisions : "history"
     Employees ||--o{ NoteRevisions : "edited by"
+    Notes ||--o{ NoteAttachments : "has files"
     Employees { int EmployeeId PK
         string Name
         string Email UK
@@ -98,6 +100,13 @@ erDiagram
         guid NoteVersion
         int EditedByEmployeeId FK
         datetime EditedAt }
+    NoteAttachments { int AttachmentId PK
+        int NoteId FK
+        string FileName
+        string ContentType
+        long SizeBytes
+        string StoredName UK
+        int UploadedByEmployeeId FK }
 ```
 
 ## Running locally
@@ -235,6 +244,27 @@ A stale `expectedVersion` returns `409 Conflict`; re-`GET` the note, reapply you
 - **No leaks:** the index only yields candidate ids; they are intersected with the notes the employee may read before anything is returned.
 - **Caveat for developers:** if a future migration makes EF rebuild the `Notes` table, SQLite drops its triggers; that migration must recreate them (noted in the `AddFullTextSearch` migration).
 
+### Attachments
+
+| Endpoint | Behaviour |
+|---|---|
+| `POST /api/notes/{id}/attachments` | `multipart/form-data` with one file in the field `file`. `201` with the attachment; `400` for a disallowed type, content that does not match the extension, an empty file, more than 5 MB, or more than 10 files on the note; `403`/`404` per the note's access rules. |
+| `GET /api/notes/{id}/attachments` | Attachment metadata for the note. |
+| `GET /api/notes/{id}/attachments/{attachmentId}` | Downloads the file. |
+| `DELETE /api/notes/{id}/attachments/{attachmentId}` | The uploader or the note's creator. `204`; others get `403`. |
+
+Notes also include an `attachments` array. Anyone who can read a note can download its files, and anyone who can edit it can attach files (these are the same people). Files are stored in `src/SharedNotes.Api/App_Data/attachments` (git-ignored); change the location with the `Attachments:Path` setting, and back it up together with the SQLite file.
+
+How uploads are kept safe:
+
+- **Allow-list of types** (`.pdf .png .jpg .jpeg .gif .txt .md .csv .docx .xlsx .pptx`). HTML, SVG, scripts and executables are refused. The stored content type comes from this list, never from the client.
+- **Content check:** binary types must start with the right file signature for their extension; text types must not contain NUL bytes. This blocks the obvious "HTML renamed to `.png`" trick but is not a virus scan.
+- **No path tricks:** files are saved under random 32-character names; the original name is sanitized, kept only as metadata, and never used as a path.
+- **Forced download:** responses use `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`, so uploaded content is never rendered inside the app's origin. The whole app also sends a `Content-Security-Policy` (`default-src 'self'`), `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`.
+- **Not part of the concurrency token:** adding or removing a file does not change the note's `version`, so it never causes someone else's text edit to be rejected, and it is not recorded in note history.
+
+Limits: no virus scanning, no image thumbnails or previews, one file per request, and files live on the application server's disk (a multi-server deployment would need shared storage).
+
 ### Live updates and editing presence
 
 `GET /api/events` is a [Server-Sent Events](https://developer.mozilla.org/docs/Web/API/Server-sent_events) stream (sign-in required) used by the browser UI. It emits `note-changed`, `note-deleted` and `editing` events with `noteId`, `actorId`, `actorName` and, where relevant, `version` or `active`.
@@ -284,7 +314,7 @@ Not implemented, but worth doing with more time:
 
 - Further hardening of sign-in: account lockout, password reset by email, multi-factor authentication, single sign-on.
 - Collaborative co-editing (shared cursors, merging of simultaneous edits). Live updates and "also editing" notices exist, but conflicts are still resolved by reloading.
-- Attachments and notifications.
+- Notifications.
 - Frontend improvements (accessibility review, richer editing, a proper conflict-resolution view showing both versions).
 - A different database if write load grows, and reconsidering the monolith if modules need independent deployment.
 

@@ -55,6 +55,7 @@ public class NoteDto
     public Guid Version { get; set; }
     /// <summary>Convenience flag for clients; the server enforces the rule regardless.</summary>
     public bool CanDelete { get; set; }
+    public List<AttachmentDto> Attachments { get; set; } = [];
 }
 
 public class RevisionDto
@@ -157,4 +158,15 @@ public class TeamDto
     public string Name { get; set; } = "";
     public DateTime CreatedAt { get; set; }
     public List<MemberDto> Members { get; set; } = [];
+}
+
+public class AttachmentDto
+{
+    public int AttachmentId { get; set; }
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+    public int UploadedByEmployeeId { get; set; }
+    public string UploadedByName { get; set; } = "";
+    public DateTime UploadedAt { get; set; }
 }

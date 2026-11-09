@@ -60,6 +60,7 @@ public class Note
     public Team? Team { get; set; }
     public List<NoteTopic> NoteTopics { get; set; } = [];
     public List<NoteRevision> Revisions { get; set; } = [];
+    public List<NoteAttachment> Attachments { get; set; } = [];
 }
 
 /// <summary>Immutable snapshot of a note after a create or update (one row per change). Deleted with its note.</summary>
@@ -87,4 +88,23 @@ public class NoteTopic
     public int TopicId { get; set; }
     public Note Note { get; set; } = null!;
     public Topic Topic { get; set; } = null!;
+}
+
+/// <summary>Metadata for a file attached to a note. The bytes live on disk under <see cref="StoredName"/>.</summary>
+public class NoteAttachment
+{
+    public int AttachmentId { get; set; }
+    public int NoteId { get; set; }
+    /// <summary>Sanitized original name, for display and downloads only. Never used as a path.</summary>
+    public string FileName { get; set; } = "";
+    /// <summary>Derived from the (allow-listed) extension, never trusted from the client.</summary>
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+    /// <summary>Random GUID file name on disk.</summary>
+    public string StoredName { get; set; } = "";
+    public int UploadedByEmployeeId { get; set; }
+    public DateTime UploadedAt { get; set; }
+
+    public Note Note { get; set; } = null!;
+    public Employee UploadedBy { get; set; } = null!;
 }

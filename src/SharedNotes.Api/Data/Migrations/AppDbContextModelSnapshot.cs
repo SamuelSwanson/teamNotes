@@ -198,6 +198,51 @@ namespace SharedNotes.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SharedNotes.Api.Models.NoteAttachment", b =>
+                {
+                    b.Property<int>("AttachmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("NoteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StoredName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UploadedByEmployeeId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("AttachmentId");
+
+                    b.HasIndex("NoteId");
+
+                    b.HasIndex("StoredName")
+                        .IsUnique();
+
+                    b.HasIndex("UploadedByEmployeeId");
+
+                    b.ToTable("NoteAttachments");
+                });
+
             modelBuilder.Entity("SharedNotes.Api.Models.NoteRevision", b =>
                 {
                     b.Property<int>("RevisionId")
@@ -496,6 +541,25 @@ namespace SharedNotes.Api.Data.Migrations
                     b.Navigation("UpdatedBy");
                 });
 
+            modelBuilder.Entity("SharedNotes.Api.Models.NoteAttachment", b =>
+                {
+                    b.HasOne("SharedNotes.Api.Models.Note", "Note")
+                        .WithMany("Attachments")
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SharedNotes.Api.Models.Employee", "UploadedBy")
+                        .WithMany()
+                        .HasForeignKey("UploadedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Note");
+
+                    b.Navigation("UploadedBy");
+                });
+
             modelBuilder.Entity("SharedNotes.Api.Models.NoteRevision", b =>
                 {
                     b.HasOne("SharedNotes.Api.Models.Employee", "EditedBy")
@@ -560,6 +624,8 @@ namespace SharedNotes.Api.Data.Migrations
 
             modelBuilder.Entity("SharedNotes.Api.Models.Note", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("NoteTopics");
 
                     b.Navigation("Revisions");

@@ -8,7 +8,7 @@ using SharedNotes.Api.Models;
 namespace SharedNotes.Api.Services;
 
 /// <summary>Note business logic: visibility rules, authorization, filtering and optimistic concurrency.</summary>
-public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteEventBroadcaster events, PresenceTracker presence)
+public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteEventBroadcaster events, PresenceTracker presence, AttachmentStorage attachmentStorage)
 {
     private int Me => current.Required.EmployeeId;
 
@@ -150,8 +150,10 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
         if (note.CreatedByEmployeeId != Me)
             throw ApiException.Forbidden("Only the creator can delete a note.");
 
-        db.Notes.Remove(note);   // NoteTopics rows are removed by the database cascade
+        var files = await db.NoteAttachments.Where(a => a.NoteId == id).Select(a => a.StoredName).ToListAsync();
+        db.Notes.Remove(note);   // NoteTopics, revisions and attachment rows are removed by the database cascade
         await db.SaveChangesAsync();
+        foreach (var stored in files) attachmentStorage.Delete(stored);   // after the commit, so a failed delete never loses files
         Publish(NoteEvent.Deleted, note);
     }
 
@@ -183,6 +185,13 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
         return presence.Editors(id, Me).Select(e => new EditorDto { EmployeeId = e.EmployeeId, Name = e.Name }).ToList();
     }
 
+    /// <summary>Lets other clients know the note changed in a way that does not touch its Version (e.g. attachments).</summary>
+    public async Task NotifyChangedAsync(int id)
+    {
+        var note = await db.Notes.AsNoTracking().FirstOrDefaultAsync(n => n.NoteId == id);
+        if (note is not null) Publish(NoteEvent.Changed, note);
+    }
+
     private void Publish(string type, Note note) =>
         events.Publish(new NoteEvent(type, note.NoteId, note.Visibility, note.TeamId, note.CreatedByEmployeeId,
             Me, current.Required.Name, note.Version));
@@ -195,7 +204,8 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
         || (n.Visibility == Visibility.Private && n.CreatedByEmployeeId == me)
         || (n.Visibility == Visibility.Team && db.TeamMembers.Any(m => m.TeamId == n.TeamId && m.EmployeeId == me)));
 
-    private async Task EnsureCanAccessAsync(int id)
+    /// <summary>Throws 404 if the note does not exist and 403 if the current employee may not read/edit it.</summary>
+    public async Task EnsureCanAccessAsync(int id)
     {
         if (await Accessible(Me).AnyAsync(n => n.NoteId == id)) return;
         if (!await db.Notes.AnyAsync(n => n.NoteId == id)) throw ApiException.NotFound($"Note {id} not found.");
@@ -286,6 +296,11 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
         Topics = n.NoteTopics.OrderBy(nt => nt.Topic.Name)
             .Select(nt => new TopicDto { TopicId = nt.TopicId, Name = nt.Topic.Name, Description = nt.Topic.Description })
             .ToList(),
+        Attachments = n.Attachments.OrderBy(a => a.AttachmentId).Select(a => new AttachmentDto
+        {
+            AttachmentId = a.AttachmentId, FileName = a.FileName, ContentType = a.ContentType, SizeBytes = a.SizeBytes,
+            UploadedByEmployeeId = a.UploadedByEmployeeId, UploadedByName = a.UploadedBy.Name, UploadedAt = a.UploadedAt,
+        }).ToList(),
         CreatedByEmployeeId = n.CreatedByEmployeeId,
         CreatedByName = n.CreatedBy.Name,
         UpdatedByEmployeeId = n.UpdatedByEmployeeId,

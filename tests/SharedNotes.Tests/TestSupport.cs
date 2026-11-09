@@ -17,6 +17,8 @@ namespace SharedNotes.Tests;
 public class AppFactory : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _keeper;
+    /// <summary>Per-factory folder for uploaded files; removed on dispose.</summary>
+    public string AttachmentsDir { get; } = Path.Combine(Path.GetTempPath(), "sharednotes-test-" + Guid.NewGuid().ToString("N"));
     private readonly string _connectionString = $"Data Source=file:test_{Guid.NewGuid():N}?mode=memory&cache=shared";
 
     private readonly Dictionary<string, string> _settings;
@@ -33,6 +35,7 @@ public class AppFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:Default", _connectionString);
         // Test-only: act as any employee via X-Employee-Id without a password round-trip (disabled in the real app).
         builder.UseSetting("Auth:AllowHeaderIdentity", "true");
+        builder.UseSetting("Attachments:Path", AttachmentsDir);
         foreach (var (key, value) in _settings) builder.UseSetting(key, value);
         builder.UseEnvironment("Testing");
     }
@@ -47,7 +50,11 @@ public class AppFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing) _keeper.Dispose();
+        if (disposing)
+        {
+            _keeper.Dispose();
+            try { if (Directory.Exists(AttachmentsDir)) Directory.Delete(AttachmentsDir, true); } catch (IOException) { }
+        }
     }
 }
 

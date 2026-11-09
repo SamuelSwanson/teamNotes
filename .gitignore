@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 *.db
 *.db-shm
 *.db-wal
+
+# Uploaded attachments (runtime data)
+App_Data/
