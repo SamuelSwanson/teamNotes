@@ -145,6 +145,7 @@ async function openEditor(noteId) {
     // Fetch the latest copy so the Version token we send back is the one we actually displayed.
     populateEditor(noteId ? await api('GET', `/api/notes/${noteId}`) : null);
     $('editor').showModal();
+    if (noteId) beginPresence(noteId);
   } catch (e) {
     showMessage('Could not open note: ' + e.message, true);
   }
@@ -183,6 +184,8 @@ async function saveNote(event) {
 async function reloadEditingNote() {
   try {
     populateEditor(await api('GET', `/api/notes/${state.editing.noteId}`));
+    changedBy = null;
+    renderEditorNotice();
     showMessage('Reloaded the latest version.');
   } catch (e) {
     setEditorError(e.message);
@@ -225,6 +228,7 @@ function setLoginError(text) {
 
 function showLogin(notice) {
   state.me = null;
+  stopEvents();
   $('app').classList.add('hidden');
   $('session').classList.add('hidden');
   $('login').classList.remove('hidden');
@@ -235,6 +239,7 @@ function showLogin(notice) {
 
 async function showApp(me) {
   state.me = me;
+  startEvents();
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
   $('session').classList.remove('hidden');
@@ -337,3 +342,87 @@ async function openHistory(note) {
 }
 
 $('history-close').addEventListener('click', () => $('history-dialog').close());
+
+// ---------- Live updates and "being edited" notices ----------
+
+let eventSource = null;
+let heartbeatTimer = null;
+let refreshTimer = null;
+const otherEditors = new Map();   // employeeId -> name, for the note open in the editor
+let changedBy = null;             // set when someone else saved/deleted the note that is open in the editor
+
+function openNoteId() { return $('editor').open && state.editing ? state.editing.noteId : null; }
+
+function renderEditorNotice() {
+  const parts = [];
+  if (changedBy) parts.push(changedBy.deleted
+    ? `${changedBy.name} deleted this note.`
+    : `${changedBy.name} saved a newer version. Use "Reload latest" before saving, or your save will be rejected.`);
+  if (otherEditors.size) parts.push(`${[...otherEditors.values()].join(', ')} ${otherEditors.size > 1 ? 'are' : 'is'} also editing this note.`);
+  $('editor-notice').textContent = parts.join(' ');
+  $('editor-notice').classList.toggle('hidden', parts.length === 0);
+  if (changedBy && !changedBy.deleted) $('reload-note').classList.remove('hidden');
+}
+
+async function beginPresence(noteId) {
+  otherEditors.clear();
+  changedBy = null;
+  renderEditorNotice();
+  const beat = () => api('PUT', `/api/notes/${noteId}/editing`).catch(() => {});
+  beat();
+  clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(beat, 20000);   // server forgets editors after ~45s without a heartbeat
+  try {
+    for (const e of await api('GET', `/api/notes/${noteId}/editors`)) otherEditors.set(e.employeeId, e.name);
+    renderEditorNotice();
+  } catch { /* the notice is a convenience; ignore failures */ }
+}
+
+function endPresence() {
+  clearInterval(heartbeatTimer);
+  if (state.editing && state.me) {
+    fetch(`/api/notes/${state.editing.noteId}/editing`, { method: 'DELETE', keepalive: true }).catch(() => {});
+  }
+  otherEditors.clear();
+  changedBy = null;
+}
+
+function onNoteEvent(type, data) {
+  if (data.actorId === state.me?.employeeId) {
+    if (type === 'note-changed' || type === 'note-deleted') scheduleRefresh();   // keep my other tabs fresh too
+    return;
+  }
+  if (type === 'editing') {
+    if (data.noteId === openNoteId()) {
+      if (data.active) otherEditors.set(data.actorId, data.actorName); else otherEditors.delete(data.actorId);
+      renderEditorNotice();
+    }
+    return;
+  }
+  scheduleRefresh();
+  if (data.noteId === openNoteId()) {
+    changedBy = { name: data.actorName, deleted: type === 'note-deleted' };
+    renderEditorNotice();
+  }
+}
+
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(loadNotes, 300);   // coalesce bursts of events into one list refresh
+}
+
+function startEvents() {
+  stopEvents();
+  eventSource = new EventSource('/api/events');   // sends the session cookie; the browser reconnects automatically
+  for (const type of ['note-changed', 'note-deleted', 'editing']) {
+    eventSource.addEventListener(type, (e) => onNoteEvent(type, JSON.parse(e.data)));
+  }
+}
+
+function stopEvents() {
+  if (eventSource) eventSource.close();
+  eventSource = null;
+}
+
+$('editor').addEventListener('close', endPresence);
+window.addEventListener('pagehide', () => { if (openNoteId()) endPresence(); });

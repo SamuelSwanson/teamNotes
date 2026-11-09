@@ -8,7 +8,7 @@ using SharedNotes.Api.Models;
 namespace SharedNotes.Api.Services;
 
 /// <summary>Note business logic: visibility rules, authorization, filtering and optimistic concurrency.</summary>
-public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
+public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteEventBroadcaster events, PresenceTracker presence)
 {
     private int Me => current.Required.EmployeeId;
 
@@ -57,6 +57,7 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
         note.Revisions.Add(Snapshot(note, "Created", await TeamNameAsync(note.TeamId), topics));
         db.Notes.Add(note);
         await db.SaveChangesAsync();
+        Publish(NoteEvent.Changed, note);
         return await GetDtoAsync(note.NoteId);
     }
 
@@ -102,6 +103,7 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
             throw ApiException.Conflict("The note was modified by someone else. Reload it and try again.");
         }
 
+        Publish(NoteEvent.Changed, note);
         return await GetDtoAsync(id);
     }
 
@@ -114,7 +116,40 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
 
         db.Notes.Remove(note);   // NoteTopics rows are removed by the database cascade
         await db.SaveChangesAsync();
+        Publish(NoteEvent.Deleted, note);
     }
+
+    // ---------- editing presence ----------
+
+    /// <summary>Marks the current employee as having the note open for editing (call again every ~20s as a heartbeat).</summary>
+    public async Task StartEditingAsync(int id)
+    {
+        await EnsureCanAccessAsync(id);
+        var note = await db.Notes.AsNoTracking().FirstAsync(n => n.NoteId == id);
+        var template = new NoteEvent(NoteEvent.Editing, id, note.Visibility, note.TeamId, note.CreatedByEmployeeId,
+            Me, current.Required.Name, Active: true);
+        if (presence.Touch(id, Me, current.Required.Name, template)) events.Publish(template);
+    }
+
+    public async Task StopEditingAsync(int id)
+    {
+        if (!presence.Remove(id, Me)) return;
+        var note = await db.Notes.AsNoTracking().FirstOrDefaultAsync(n => n.NoteId == id);
+        if (note is null) return;   // note was deleted meanwhile; nothing to announce
+        events.Publish(new NoteEvent(NoteEvent.Editing, id, note.Visibility, note.TeamId, note.CreatedByEmployeeId,
+            Me, current.Required.Name, Active: false));
+    }
+
+    /// <summary>Other employees currently editing the note.</summary>
+    public async Task<List<EditorDto>> EditorsAsync(int id)
+    {
+        await EnsureCanAccessAsync(id);
+        return presence.Editors(id, Me).Select(e => new EditorDto { EmployeeId = e.EmployeeId, Name = e.Name }).ToList();
+    }
+
+    private void Publish(string type, Note note) =>
+        events.Publish(new NoteEvent(type, note.NoteId, note.Visibility, note.TeamId, note.CreatedByEmployeeId,
+            Me, current.Required.Name, note.Version));
 
     // ---------- helpers ----------
 

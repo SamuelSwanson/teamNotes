@@ -49,3 +49,4 @@ fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 12px
 .revision { border-top: 1px solid var(--border); padding: 8px 0; }
 .revision summary { cursor: pointer; }
 .revision pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; font: inherit; color: var(--muted); }
+.message.warn { background: var(--warn-bg); color: #6b4e00; }

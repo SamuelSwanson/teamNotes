@@ -11,6 +11,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<NoteEventBroadcaster>();
+builder.Services.AddSingleton<PresenceTracker>();
+builder.Services.AddHostedService<PresenceSweeper>();
 builder.Services.AddScoped<CurrentEmployeeAccessor>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<NoteService>();

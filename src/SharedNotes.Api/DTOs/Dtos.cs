@@ -66,6 +66,12 @@ public class RevisionDto
     public DateTime EditedAt { get; set; }
 }
 
+public class EditorDto
+{
+    public int EmployeeId { get; set; }
+    public string Name { get; set; } = "";
+}
+
 // ---------- Topics ----------
 
 public class TopicRequest

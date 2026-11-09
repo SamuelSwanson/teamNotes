@@ -180,6 +180,9 @@ curl -b cookies.txt http://localhost:5115/api/notes
 | `PUT /api/notes/{id}` | Same body plus **`expectedVersion`** (required). `200` with the new `version`; `403` no access (or non-creator changing visibility/team); `409` if `expectedVersion` is stale. |
 | `DELETE /api/notes/{id}` | Creator only. `204`; `403`; `404`. |
 | `GET /api/notes/{id}/history` | Every saved state of the note, newest first (`action`, `title`, `content`, `visibility`, `teamName`, `topics`, `noteVersion`, editor, `editedAt`). Same access rule as reading the note: `403`/`404` accordingly. |
+| `GET /api/notes/{id}/editors` | Other employees currently editing the note (`employeeId`, `name`). Same access rule as reading the note. |
+| `PUT /api/notes/{id}/editing` | Heartbeat: marks you as editing the note. Repeat every ~20s; it expires after ~45s. `204`. |
+| `DELETE /api/notes/{id}/editing` | Marks you as no longer editing. `204`. |
 
 Note responses include `version`, `canDelete`, `topics`, creator/updater ids and names, `createdAt`, `updatedAt`.
 
@@ -221,6 +224,15 @@ Content-Type: application/json
 
 A stale `expectedVersion` returns `409 Conflict`; re-`GET` the note, reapply your change to the fresh copy, and retry with its new `version`.
 
+### Live updates and editing presence
+
+`GET /api/events` is a [Server-Sent Events](https://developer.mozilla.org/docs/Web/API/Server-sent_events) stream (sign-in required) used by the browser UI. It emits `note-changed`, `note-deleted` and `editing` events with `noteId`, `actorId`, `actorName` and, where relevant, `version` or `active`.
+
+- **No content leaks:** events carry no note content, and each one is delivered only to employees who may read that note (Private: its creator, Team: current team members, All: everyone). Clients re-fetch through the normal authorized API.
+- **Concurrency is unchanged:** a live notice that someone else saved is advisory. The `expectedVersion` check on `PUT` is still what prevents lost updates.
+- **UI behaviour:** the list refreshes itself when events arrive; an open editor shows "X is also editing" and "X saved a newer version" notices, and the user chooses when to reload.
+- **Limits:** the broadcaster and presence tracker live in process memory. That is right for this single-process monolith. Running several instances would need a shared backplane (for example Redis pub/sub). A client that misses events (slow connection, dropped stream) catches up on its next list refresh or reconnect. `Presence:TtlSeconds` (default 45) and `Presence:SweepSeconds` (default 10) tune presence expiry.
+
 ### Behaviour decisions worth knowing
 
 - **403 vs 404:** a note that exists but is not visible to you returns `403` (predictable, as the spec's status list suggests). This reveals that the id exists; returning `404` instead would hide it.
@@ -260,7 +272,7 @@ A stale `expectedVersion` returns `409 Conflict`; re-`GET` the note, reapply you
 Not implemented, but worth doing with more time:
 
 - Further hardening of sign-in: account lockout, password reset by email, multi-factor authentication, single sign-on.
-- Real-time collaboration or presence indicators.
+- Collaborative co-editing (shared cursors, merging of simultaneous edits). Live updates and "also editing" notices exist, but conflicts are still resolved by reloading.
 - Real full-text search (SQLite FTS5 or a search engine) and pagination.
 - Attachments and notifications.
 - Frontend improvements (accessibility review, richer editing, a proper conflict-resolution view showing both versions).
