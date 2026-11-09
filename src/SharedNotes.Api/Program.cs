@@ -1,10 +1,14 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SharedNotes.Api.Data;
+using SharedNotes.Api.Identity;
+using SharedNotes.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+builder.Services.AddScoped<CurrentEmployeeAccessor>();
 
 // The connection string is resolved lazily so integration tests can override it.
 builder.Services.AddDbContext<AppDbContext>((sp, options) =>
@@ -23,6 +27,10 @@ await using (var scope = app.Services.CreateAsyncScope())
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 }
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseDefaultFiles();
+app.UseStaticFiles();
+app.UseMiddleware<EmployeeIdentityMiddleware>();
 app.MapControllers();
 app.Run();
 
