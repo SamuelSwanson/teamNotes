@@ -8,7 +8,7 @@ using SharedNotes.Api.Models;
 namespace SharedNotes.Api.Services;
 
 /// <summary>Note business logic: visibility rules, authorization, filtering and optimistic concurrency.</summary>
-public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteEventBroadcaster events, PresenceTracker presence, AttachmentStorage attachmentStorage)
+public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteEventBroadcaster events, PresenceTracker presence, AttachmentStorage attachmentStorage, NotificationService notifications)
 {
     private int Me => current.Required.EmployeeId;
 
@@ -94,6 +94,7 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
         db.Notes.Add(note);
         await db.SaveChangesAsync();
         Publish(NoteEvent.Changed, note);
+        await NotifyTeamOfNewNoteAsync(note);
         return await GetDtoAsync(note.NoteId);
     }
 
@@ -140,6 +141,7 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
         }
 
         Publish(NoteEvent.Changed, note);
+        await NotifyCreatorOfEditAsync(note);
         return await GetDtoAsync(id);
     }
 
@@ -155,6 +157,27 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
         await db.SaveChangesAsync();
         foreach (var stored in files) attachmentStorage.Delete(stored);   // after the commit, so a failed delete never loses files
         Publish(NoteEvent.Deleted, note);
+    }
+
+    // ---------- notifications ----------
+
+    /// <summary>Tells the other members of a team when a note is shared with it.</summary>
+    private async Task NotifyTeamOfNewNoteAsync(Note note)
+    {
+        if (note.Visibility != Visibility.Team || note.TeamId is not { } teamId) return;
+        var team = await db.Teams.AsNoTracking().Where(t => t.TeamId == teamId)
+            .Select(t => new { t.Name, Members = t.Members.Select(m => m.EmployeeId).ToList() }).FirstAsync();
+        await notifications.NotifyAsync(team.Members, NotificationTypes.NoteShared,
+            $"{current.Required.Name} shared “{note.Title}” with {team.Name}", noteId: note.NoteId, teamId: teamId);
+    }
+
+    /// <summary>Tells a note's creator when someone else edits it (only if the creator can still read it).</summary>
+    private async Task NotifyCreatorOfEditAsync(Note note)
+    {
+        if (note.CreatedByEmployeeId == Me) return;
+        if (!await Accessible(note.CreatedByEmployeeId).AnyAsync(n => n.NoteId == note.NoteId)) return;
+        await notifications.NotifyAsync([note.CreatedByEmployeeId], NotificationTypes.NoteEdited,
+            $"{current.Required.Name} edited your note “{note.Title}”", noteId: note.NoteId);
     }
 
     // ---------- editing presence ----------

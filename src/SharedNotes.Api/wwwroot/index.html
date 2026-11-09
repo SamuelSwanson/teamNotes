@@ -13,6 +13,7 @@
       <label id="switch-row" class="hidden">Demo switch
         <select id="employee" aria-label="Switch demo employee"></select>
       </label>
+      <button id="bell" type="button" aria-label="Notifications">Notifications <span id="unread" class="badge hidden">0</span></button>
       <span id="whoami"></span>
       <button id="change-password" type="button">Change password</button>
       <button id="logout" type="button">Log out</button>
@@ -88,6 +89,16 @@
         <button type="submit" class="primary" id="save">Save</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="notifications-dialog">
+    <h2>Notifications</h2>
+    <ul id="n-list" class="notif-list"></ul>
+    <p id="n-empty" class="hint hidden">You have no notifications.</p>
+    <div class="actions">
+      <button type="button" id="n-read-all">Mark all read</button>
+      <button type="button" id="n-close">Close</button>
+    </div>
   </dialog>
 
   <dialog id="history-dialog">

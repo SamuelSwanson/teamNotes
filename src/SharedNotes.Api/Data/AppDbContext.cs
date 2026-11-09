@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<NoteTopic> NoteTopics => Set<NoteTopic>();
     public DbSet<NoteRevision> NoteRevisions => Set<NoteRevision>();
     public DbSet<NoteAttachment> NoteAttachments => Set<NoteAttachment>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

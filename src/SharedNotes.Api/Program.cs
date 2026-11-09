@@ -18,6 +18,7 @@ builder.Services.AddHostedService<PresenceSweeper>();
 builder.Services.AddScoped<CurrentEmployeeAccessor>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddSingleton<AttachmentStorage>();
+builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<NoteService>();
 builder.Services.AddScoped<AttachmentService>();
 builder.Services.AddScoped<TeamService>();

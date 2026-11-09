@@ -14,6 +14,7 @@ public record NoteEvent(string Type, int NoteId, Visibility Visibility, int? Tea
     public const string Changed = "note-changed";
     public const string Deleted = "note-deleted";
     public const string Editing = "editing";
+    public const string Notification = "notification";
 }
 
 /// <summary>

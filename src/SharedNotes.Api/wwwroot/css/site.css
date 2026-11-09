@@ -54,3 +54,9 @@ fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 12px
 .attachments { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
 .attachments li { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
 .note .files a { color: var(--accent); }
+.badge { display: inline-block; min-width: 1.4em; padding: 0 6px; border-radius: 999px; background: var(--danger); color: #fff; font-size: .75rem; text-align: center; }
+.notif-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; max-height: 50vh; overflow: auto; }
+.notif-list li { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+.notif-list li.unread { background: #eef3ff; border-color: var(--accent); }
+.notif-list li.unread .msg { font-weight: 600; }
+.notif-list .when { font-size: .75rem; color: var(--muted); }

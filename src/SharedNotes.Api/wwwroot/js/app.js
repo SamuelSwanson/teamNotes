@@ -265,6 +265,7 @@ async function showApp(me) {
     fillSelect($('employee'), null, demoInfo.employees, 'employeeId', 'name');
     $('employee').value = me.employeeId;
   }
+  refreshUnread();
   await refreshAll();
 }
 
@@ -401,6 +402,12 @@ function endPresence() {
 }
 
 function onNoteEvent(type, data) {
+  if (type === 'notification') {   // delivered only to the recipient
+    refreshUnread();
+    if ($('notifications-dialog').open) renderNotifications();
+    else showMessage(`New notification from ${data.actorName}.`);
+    return;
+  }
   if (data.actorId === state.me?.employeeId) {
     if (type === 'note-changed' || type === 'note-deleted') scheduleRefresh();   // keep my other tabs fresh too
     return;
@@ -427,7 +434,7 @@ function scheduleRefresh() {
 function startEvents() {
   stopEvents();
   eventSource = new EventSource('/api/events');   // sends the session cookie; the browser reconnects automatically
-  for (const type of ['note-changed', 'note-deleted', 'editing']) {
+  for (const type of ['note-changed', 'note-deleted', 'editing', 'notification']) {
     eventSource.addEventListener(type, (e) => onNoteEvent(type, JSON.parse(e.data)));
   }
 }
@@ -507,3 +514,47 @@ async function removeAttachment(a) {
 }
 
 $('a-file').addEventListener('change', onAttachmentChosen);
+
+// ---------- Notifications ----------
+
+async function refreshUnread() {
+  try {
+    const { count } = await api('GET', '/api/notifications/unread-count');
+    $('unread').textContent = count > 99 ? '99+' : count;
+    $('unread').classList.toggle('hidden', count === 0);
+  } catch { /* the badge is a convenience */ }
+}
+
+async function renderNotifications() {
+  const items = await api('GET', '/api/notifications');
+  $('n-empty').classList.toggle('hidden', items.length > 0);
+  $('n-list').replaceChildren(...items.map((n) => el('li', { className: n.isRead ? '' : 'unread', onclick: () => openNotification(n) },
+    el('div', { className: 'msg', textContent: n.message }),
+    el('div', { className: 'when', textContent: new Date(n.createdAt).toLocaleString() }))));
+}
+
+async function openNotification(n) {
+  try {
+    if (!n.isRead) await api('POST', `/api/notifications/${n.notificationId}/read`);
+    refreshUnread();
+    if (n.noteId) {
+      $('notifications-dialog').close();
+      await openEditor(n.noteId);   // fails with a clear message if the note is gone or no longer readable
+    } else {
+      await renderNotifications();
+    }
+  } catch (e) {
+    showMessage(e.message, true);
+  }
+}
+
+$('bell').addEventListener('click', async () => {
+  try { await renderNotifications(); $('notifications-dialog').showModal(); }
+  catch (e) { showMessage('Could not load notifications: ' + e.message, true); }
+});
+$('n-read-all').addEventListener('click', async () => {
+  await api('POST', '/api/notifications/read-all').catch((e) => showMessage(e.message, true));
+  refreshUnread();
+  renderNotifications();
+});
+$('n-close').addEventListener('click', () => $('notifications-dialog').close());

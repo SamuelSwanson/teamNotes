@@ -127,3 +127,22 @@ public class NoteAttachmentConfiguration : IEntityTypeConfiguration<NoteAttachme
         b.HasIndex(a => a.UploadedByEmployeeId);
     }
 }
+
+public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
+{
+    public void Configure(EntityTypeBuilder<Notification> b)
+    {
+        b.HasKey(n => n.NotificationId);
+        b.Property(n => n.Type).IsRequired().HasMaxLength(30);
+        b.Property(n => n.Message).IsRequired().HasMaxLength(500);
+        // Notifications belong to their recipient. They outlive the note/team they mention (the link is just cleared).
+        b.HasOne(n => n.Recipient).WithMany().HasForeignKey(n => n.RecipientEmployeeId).OnDelete(DeleteBehavior.Cascade);
+        b.HasOne(n => n.Actor).WithMany().HasForeignKey(n => n.ActorEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(n => n.Note).WithMany().HasForeignKey(n => n.NoteId).OnDelete(DeleteBehavior.SetNull);
+        b.HasOne(n => n.Team).WithMany().HasForeignKey(n => n.TeamId).OnDelete(DeleteBehavior.SetNull);
+        b.HasIndex(n => new { n.RecipientEmployeeId, n.ReadAt, n.CreatedAt });
+        b.HasIndex(n => n.ActorEmployeeId);
+        b.HasIndex(n => n.NoteId);
+        b.HasIndex(n => n.TeamId);
+    }
+}

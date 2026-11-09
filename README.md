@@ -53,6 +53,7 @@ tests/SharedNotes.Tests/
 - **NoteTopics** – join table, composite key (`NoteId`, `TopicId`).
 - **NoteRevisions** – one immutable snapshot per create/update (title, content, visibility, team name, topic names, the note `Version` it produced, who and when). Cascade-deleted with the note.
 - **NoteAttachments** – metadata for files attached to a note (sanitized display name, allow-listed content type, size, random on-disk name, uploader). The bytes are stored on disk, not in SQLite. Cascade-deleted with the note (the files are removed too).
+- **Notifications** – an in-app message for one recipient (type, fixed message text, optional link to a note or team, who caused it, `ReadAt`). Deleted with the recipient; if the note or team it mentions is deleted, the link is cleared but the message stays.
 
 Delete behaviour: deleting a note, topic, team or employee **cascades only to join rows** (`NoteTopics`, `TeamMembers`). Notes reference employees and teams with `RESTRICT`, so nobody can be deleted out from under a note. (There are no endpoints to delete employees or teams.)
 
@@ -67,6 +68,7 @@ erDiagram
     Notes ||--o{ NoteRevisions : "history"
     Employees ||--o{ NoteRevisions : "edited by"
     Notes ||--o{ NoteAttachments : "has files"
+    Employees ||--o{ Notifications : "receives"
     Employees { int EmployeeId PK
         string Name
         string Email UK
@@ -107,6 +109,14 @@ erDiagram
         long SizeBytes
         string StoredName UK
         int UploadedByEmployeeId FK }
+    Notifications { int NotificationId PK
+        int RecipientEmployeeId FK
+        int ActorEmployeeId FK
+        string Type
+        string Message
+        int NoteId FK
+        int TeamId FK
+        datetime ReadAt }
 ```
 
 ## Running locally
@@ -265,6 +275,25 @@ How uploads are kept safe:
 
 Limits: no virus scanning, no image thumbnails or previews, one file per request, and files live on the application server's disk (a multi-server deployment would need shared storage).
 
+### Notifications
+
+Each employee has a private inbox. Notifications are created by these events (you are never notified about your own actions):
+
+| Event | Who is notified | `type` |
+|---|---|---|
+| Someone else edits a note you created | The creator, only if they can still read the note | `note-edited` |
+| A Team note is created | The other members of that team | `note-shared` |
+| You are added to a team | The new member | `team-added` |
+
+| Endpoint | Behaviour |
+|---|---|
+| `GET /api/notifications?unreadOnly=false` | Your 50 most recent notifications, newest first. |
+| `GET /api/notifications/unread-count` | `{ "count": n }`. |
+| `POST /api/notifications/{id}/read` | `204`. Someone else's notification returns `404`. |
+| `POST /api/notifications/read-all` | `204`; marks only your own. |
+
+New notifications are also pushed live over `GET /api/events` as a `notification` event that is delivered **only to the recipient**; the UI shows an unread badge on the bell and a toast. Notifications are best-effort: if one cannot be stored, the error is logged and the action that triggered it still succeeds. Message text is fixed when the notification is created, so it can show an old note title. Old notifications are not cleaned up automatically.
+
 ### Live updates and editing presence
 
 `GET /api/events` is a [Server-Sent Events](https://developer.mozilla.org/docs/Web/API/Server-sent_events) stream (sign-in required) used by the browser UI. It emits `note-changed`, `note-deleted` and `editing` events with `noteId`, `actorId`, `actorName` and, where relevant, `version` or `active`.
@@ -314,7 +343,7 @@ Not implemented, but worth doing with more time:
 
 - Further hardening of sign-in: account lockout, password reset by email, multi-factor authentication, single sign-on.
 - Collaborative co-editing (shared cursors, merging of simultaneous edits). Live updates and "also editing" notices exist, but conflicts are still resolved by reloading.
-- Notifications.
+- Email or push delivery of notifications, per-user notification preferences, and automatic clean-up of old notifications.
 - Frontend improvements (accessibility review, richer editing, a proper conflict-resolution view showing both versions).
 - A different database if write load grows, and reconsidering the monolith if modules need independent deployment.
 

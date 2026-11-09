@@ -392,6 +392,53 @@ namespace SharedNotes.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SharedNotes.Api.Models.Notification", b =>
+                {
+                    b.Property<int>("NotificationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ActorEmployeeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("NoteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecipientEmployeeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TeamId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("NotificationId");
+
+                    b.HasIndex("ActorEmployeeId");
+
+                    b.HasIndex("NoteId");
+
+                    b.HasIndex("TeamId");
+
+                    b.HasIndex("RecipientEmployeeId", "ReadAt", "CreatedAt");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("SharedNotes.Api.Models.Team", b =>
                 {
                     b.Property<int>("TeamId")
@@ -596,6 +643,39 @@ namespace SharedNotes.Api.Data.Migrations
                     b.Navigation("Note");
 
                     b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("SharedNotes.Api.Models.Notification", b =>
+                {
+                    b.HasOne("SharedNotes.Api.Models.Employee", "Actor")
+                        .WithMany()
+                        .HasForeignKey("ActorEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SharedNotes.Api.Models.Note", "Note")
+                        .WithMany()
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SharedNotes.Api.Models.Employee", "Recipient")
+                        .WithMany()
+                        .HasForeignKey("RecipientEmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SharedNotes.Api.Models.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Actor");
+
+                    b.Navigation("Note");
+
+                    b.Navigation("Recipient");
+
+                    b.Navigation("Team");
                 });
 
             modelBuilder.Entity("SharedNotes.Api.Models.TeamMember", b =>

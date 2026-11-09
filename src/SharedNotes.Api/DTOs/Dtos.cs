@@ -170,3 +170,16 @@ public class AttachmentDto
     public string UploadedByName { get; set; } = "";
     public DateTime UploadedAt { get; set; }
 }
+
+public class NotificationDto
+{
+    public int NotificationId { get; set; }
+    public string Type { get; set; } = "";
+    public string Message { get; set; } = "";
+    public int? NoteId { get; set; }
+    public int? TeamId { get; set; }
+    public int ActorEmployeeId { get; set; }
+    public string ActorName { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public bool IsRead { get; set; }
+}

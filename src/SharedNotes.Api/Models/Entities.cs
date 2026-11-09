@@ -108,3 +108,23 @@ public class NoteAttachment
     public Note Note { get; set; } = null!;
     public Employee UploadedBy { get; set; } = null!;
 }
+
+/// <summary>An in-app message for one employee (note edited, added to a team, review request, ...).</summary>
+public class Notification
+{
+    public int NotificationId { get; set; }
+    public int RecipientEmployeeId { get; set; }
+    public int ActorEmployeeId { get; set; }
+    public string Type { get; set; } = "";
+    /// <summary>Fixed at creation time so it stays readable even if the note is later renamed or deleted.</summary>
+    public string Message { get; set; } = "";
+    public int? NoteId { get; set; }
+    public int? TeamId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? ReadAt { get; set; }
+
+    public Employee Recipient { get; set; } = null!;
+    public Employee Actor { get; set; } = null!;
+    public Note? Note { get; set; }
+    public Team? Team { get; set; }
+}

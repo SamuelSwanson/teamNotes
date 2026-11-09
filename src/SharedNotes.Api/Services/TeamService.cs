@@ -7,7 +7,7 @@ using SharedNotes.Api.Models;
 
 namespace SharedNotes.Api.Services;
 
-public class TeamService(AppDbContext db, CurrentEmployeeAccessor current)
+public class TeamService(AppDbContext db, CurrentEmployeeAccessor current, NotificationService notifications)
 {
     public const string LeadRole = "Lead";
 
@@ -42,7 +42,10 @@ public class TeamService(AppDbContext db, CurrentEmployeeAccessor current)
 
         db.TeamMembers.Add(new TeamMember { TeamId = teamId, EmployeeId = employeeId, Role = r.Role?.Trim() });
         await db.SaveChangesAsync();   // the composite key also blocks duplicates if two requests race (-> 409)
-        return await GetAsync(teamId);
+        var team = await GetAsync(teamId);
+        await notifications.NotifyAsync([employeeId], NotificationTypes.TeamAdded,
+            $"{current.Required.Name} added you to the team {team.Name}", teamId: teamId);
+        return team;
     }
 
     public async Task RemoveMemberAsync(int teamId, int employeeId)
