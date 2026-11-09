@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared Notes</title>
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Shared Notes</h1>
+    <label class="who">Acting as
+      <select id="employee" aria-label="Demo employee"></select>
+    </label>
+  </header>
+
+  <p class="demo-banner">Demo identity only: the selected employee is sent as an <code>X-Employee-Id</code> header. This is not real authentication.</p>
+
+  <main>
+    <div id="message" role="status" class="message hidden"></div>
+
+    <section class="filters" aria-label="Filters">
+      <input id="f-search" type="search" placeholder="Search title or content…">
+      <select id="f-visibility" aria-label="Visibility">
+        <option value="">Any visibility</option>
+        <option>Private</option><option>Team</option><option>All</option>
+      </select>
+      <select id="f-team" aria-label="Team"><option value="">Any team</option></select>
+      <select id="f-topic" aria-label="Topic"><option value="">Any topic</option></select>
+      <button id="new-note" class="primary" type="button">+ New note</button>
+    </section>
+
+    <div id="status" class="status">Loading…</div>
+    <ul id="notes" class="notes"></ul>
+  </main>
+
+  <dialog id="editor">
+    <form id="note-form" method="dialog">
+      <h2 id="editor-title">New note</h2>
+      <div id="editor-error" class="message error hidden" role="alert"></div>
+
+      <label>Title <input id="n-title" required maxlength="200"></label>
+      <label>Content <textarea id="n-content" required rows="6" maxlength="20000"></textarea></label>
+      <label>Visibility
+        <select id="n-visibility">
+          <option value="Private">Private (only me)</option>
+          <option value="Team">Team</option>
+          <option value="All">Everyone</option>
+        </select>
+      </label>
+      <label id="n-team-row">Team <select id="n-team"></select></label>
+      <fieldset>
+        <legend>Topics</legend>
+        <div id="n-topics" class="topic-list"></div>
+      </fieldset>
+
+      <div class="actions">
+        <button type="button" id="reload-note" class="hidden">Reload latest</button>
+        <button type="button" id="cancel">Cancel</button>
+        <button type="submit" class="primary" id="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
