@@ -21,12 +21,44 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
         if (q.CreatedBy is { } createdBy) query = query.Where(n => n.CreatedByEmployeeId == createdBy);
         if (q.Visibility is { } visibility) query = query.Where(n => n.Visibility == visibility);
         if (!string.IsNullOrWhiteSpace(q.Search))
-        {
-            var s = q.Search.Trim().ToLower();
-            query = query.Where(n => n.Title.ToLower().Contains(s) || n.Content.ToLower().Contains(s));
-        }
+            return await SearchAsync(query, q.Search);
 
         return await Project(query.OrderByDescending(n => n.UpdatedAt).ThenByDescending(n => n.NoteId), Me).ToListAsync();
+    }
+
+    private const int MaxSearchMatches = 1000;
+
+    /// <summary>
+    /// Full-text search (SQLite FTS5): stemmed, prefix-matching, best match first (title weighted above content).
+    /// The index finds candidate ids; they are then intersected with the notes this employee may read, so search never
+    /// reveals notes they cannot access.
+    /// </summary>
+    private async Task<List<NoteDto>> SearchAsync(IQueryable<Note> accessible, string search)
+    {
+        var match = ToFtsQuery(search);
+        if (match is null) return [];
+
+        var ranked = await db.Database.SqlQuery<int>(
+            $"SELECT rowid AS Value FROM NotesFts WHERE NotesFts MATCH {match} ORDER BY bm25(NotesFts, 5.0, 1.0) LIMIT {MaxSearchMatches}")
+            .ToListAsync();
+        if (ranked.Count == 0) return [];
+
+        var allowed = (await accessible.Where(n => ranked.Contains(n.NoteId)).Select(n => n.NoteId).ToListAsync()).ToHashSet();
+        var ids = ranked.Where(allowed.Contains).ToList();
+        var byId = (await Project(db.Notes.AsNoTracking().Where(n => ids.Contains(n.NoteId)), Me).ToListAsync())
+            .ToDictionary(n => n.NoteId);
+        return ids.Select(id => byId[id]).ToList();
+    }
+
+    /// <summary>
+    /// Turns free text into a safe FTS5 query: each word becomes a quoted prefix term, all must match (AND).
+    /// Quoting means user input can never be interpreted as FTS operators (NEAR, OR, column filters, ...).
+    /// </summary>
+    internal static string? ToFtsQuery(string search)
+    {
+        var words = System.Text.RegularExpressions.Regex.Matches(search, @"[\p{L}\p{N}]+")
+            .Select(m => m.Value).Take(10).ToList();
+        return words.Count == 0 ? null : string.Join(' ', words.Select(w => $"\"{w}\"*"));
     }
 
     public async Task<NoteDto> GetAsync(int id)

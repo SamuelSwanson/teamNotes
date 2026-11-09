@@ -174,7 +174,7 @@ curl -b cookies.txt http://localhost:5115/api/notes
 
 | Method & path | Notes |
 |---|---|
-| `GET /api/notes` | Notes the current employee can access, newest first. Query: `teamId`, `topicId`, `createdBy`, `visibility`, `search` (case-insensitive match on title or content). |
+| `GET /api/notes` | Notes the current employee can access. Query: `teamId`, `topicId`, `createdBy`, `visibility`, `search`. Without `search`: newest update first. With `search`: full-text results, best match first (see below). |
 | `GET /api/notes/{id}` | `200`; `403` if no access; `404`. |
 | `POST /api/notes` | Body: `title`, `content`, `visibility`, `teamId` (required for `Team`, must be null otherwise), `topicIds?`. `201`; `400` bad input or unknown topic/team; `403` if not a member of `teamId`. Creator/updater come from the header, never the body. |
 | `PUT /api/notes/{id}` | Same body plus **`expectedVersion`** (required). `200` with the new `version`; `403` no access (or non-creator changing visibility/team); `409` if `expectedVersion` is stale. |
@@ -224,6 +224,16 @@ Content-Type: application/json
 
 A stale `expectedVersion` returns `409 Conflict`; re-`GET` the note, reapply your change to the fresh copy, and retry with its new `version`.
 
+### Search
+
+`search` uses an SQLite **FTS5** full-text index over note titles and content, created by a migration and kept up to date by database triggers (so it stays correct even for writes outside the API):
+
+- **Words, not substrings:** matching is per word, case-insensitive and accent-insensitive (`cafe` finds `Café`), with **stemming** (`plans` finds `planning`) and **prefix** matching (`sprin` finds `sprint`). All words must match. A word fragment from the *middle* of a word (`ning`) does not match.
+- **Ranking:** best match first, with title matches weighted above content matches. At most the 1000 best matches are considered.
+- **Safe input:** the text is reduced to quoted word terms, so characters such as `"`, `*`, `OR`, `NEAR` or `:` are never interpreted as search operators and cannot cause errors.
+- **No leaks:** the index only yields candidate ids; they are intersected with the notes the employee may read before anything is returned.
+- **Caveat for developers:** if a future migration makes EF rebuild the `Notes` table, SQLite drops its triggers; that migration must recreate them (noted in the `AddFullTextSearch` migration).
+
 ### Live updates and editing presence
 
 `GET /api/events` is a [Server-Sent Events](https://developer.mozilla.org/docs/Web/API/Server-sent_events) stream (sign-in required) used by the browser UI. It emits `note-changed`, `note-deleted` and `editing` events with `noteId`, `actorId`, `actorName` and, where relevant, `version` or `active`.
@@ -256,7 +266,7 @@ A stale `expectedVersion` returns `409 Conflict`; re-`GET` the note, reapply you
 - **Alternatives:** document store; SQL Server/PostgreSQL; SQLite.
 - **Selected:** SQLite with EF Core, normalized schema.
 - **Why:** the data is relational (employees↔teams, notes↔topics, notes→employees) and benefits from foreign keys and unique constraints. SQLite needs no server, so anyone can clone and run. Employees and teams are many-to-many (`TeamMembers`) because people work across teams. Topics are their own entity so names are unique and renaming one updates every note; `NoteTopics` is the many-to-many join. Visibility is a single column (`Private`/`Team`/`All`) plus a nullable `TeamId`, with a CHECK constraint so the two cannot disagree. Access is one query predicate shared by listing and single-note checks.
-- **Tradeoffs:** SQLite allows a single writer at a time and has no `rowversion`, so concurrency uses an application token (see below). Search uses `LIKE`-style matching, not full-text. Moving to PostgreSQL later is mostly a provider change.
+- **Tradeoffs:** SQLite allows a single writer at a time and has no `rowversion`, so concurrency uses an application token (see below). Search uses an SQLite FTS5 index, which ties it to SQLite-specific SQL. Moving to PostgreSQL later is mostly a provider change.
 
 ### Decision 3: Optimistic concurrency
 
@@ -273,7 +283,7 @@ Not implemented, but worth doing with more time:
 
 - Further hardening of sign-in: account lockout, password reset by email, multi-factor authentication, single sign-on.
 - Collaborative co-editing (shared cursors, merging of simultaneous edits). Live updates and "also editing" notices exist, but conflicts are still resolved by reloading.
-- Real full-text search (SQLite FTS5 or a search engine) and pagination.
+- Pagination.
 - Attachments and notifications.
 - Frontend improvements (accessibility review, richer editing, a proper conflict-resolution view showing both versions).
 - A different database if write load grows, and reconsidering the monolith if modules need independent deployment.
