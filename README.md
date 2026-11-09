@@ -383,13 +383,22 @@ A small vanilla HTML/CSS/JS client (no build step, no dependencies), served from
 
 ## Future improvements and lessons learned
 
-Not implemented, but worth doing with more time:
+Not implemented, but worth doing with more time (items that have been built are not listed here):
 
 - Further hardening of sign-in: account lockout, password reset by email, multi-factor authentication, single sign-on.
 - Collaborative co-editing (shared cursors, merging of simultaneous edits). Live updates and "also editing" notices exist, but conflicts are still resolved by reloading.
 - Email or push delivery of notifications, per-user notification preferences, and automatic clean-up of old notifications.
 - Frontend: a formal accessibility audit with assistive technology, richer editing (Markdown preview), and automated browser tests. The UI is hand-checked in a browser, but unlike the API it has no automated test suite.
 - A different database if write load grows, and reconsidering the monolith if modules need independent deployment.
+
+### Known issues (not fixed yet)
+
+- **"Also editing" indicator is unreliable.** The live notice that someone else has a note open can be wrong or stale in some cases (for example after closing or switching tabs, or when heartbeats are missed). It needs more investigation and tests; the server side is tested, but the browser behaviour is not.
+- **The team request ("shout-out") input is somewhat buggy.** The form and the requests panel have rough edges that were found late and not fixed. Like the rest of the UI, they have no automated tests.
+
+### Scope question
+
+Notifications and team requests are the newest additions, and it is an open question whether they belong in a note-taking app at all. The author is on the fence: the project started as plain note taking, and these features push it toward a team communication tool. They may be trimmed or removed (they are largely self-contained: `NotificationService`, `ShoutOutService`, and their endpoints and UI panels), or kept if the product is meant to grow in that direction.
 
 Notes on scale: pagination uses offset/limit, which is simple and fine at this size; for very large histories keyset pagination (cursor on `UpdatedAt, NoteId`) would be steadier under concurrent writes. Other collections (teams, topics, employees) are small and not paged.
 
