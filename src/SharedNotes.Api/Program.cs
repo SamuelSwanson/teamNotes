@@ -3,12 +3,17 @@ using Microsoft.EntityFrameworkCore;
 using SharedNotes.Api.Data;
 using SharedNotes.Api.Identity;
 using SharedNotes.Api.Middleware;
+using SharedNotes.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddScoped<CurrentEmployeeAccessor>();
+builder.Services.AddScoped<NoteService>();
+builder.Services.AddScoped<TeamService>();
+builder.Services.AddScoped<EmployeeService>();
+builder.Services.AddScoped<TopicService>();
 
 // The connection string is resolved lazily so integration tests can override it.
 builder.Services.AddDbContext<AppDbContext>((sp, options) =>
