@@ -19,8 +19,11 @@ public class AppFactory : WebApplicationFactory<Program>
     private readonly SqliteConnection _keeper;
     private readonly string _connectionString = $"Data Source=file:test_{Guid.NewGuid():N}?mode=memory&cache=shared";
 
-    public AppFactory()
+    private readonly Dictionary<string, string> _settings;
+
+    public AppFactory(Dictionary<string, string>? settings = null)
     {
+        _settings = settings ?? [];
         _keeper = new SqliteConnection(_connectionString);
         _keeper.Open();
     }
@@ -28,6 +31,9 @@ public class AppFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Default", _connectionString);
+        // Test-only: act as any employee via X-Employee-Id without a password round-trip (disabled in the real app).
+        builder.UseSetting("Auth:AllowHeaderIdentity", "true");
+        foreach (var (key, value) in _settings) builder.UseSetting(key, value);
         builder.UseEnvironment("Testing");
     }
 

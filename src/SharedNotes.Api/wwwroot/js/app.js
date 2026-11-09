@@ -1,10 +1,9 @@
-// Minimal demo client. All data comes from the REST API; the selected demo employee is sent in X-Employee-Id.
+// Minimal client. All data comes from the REST API; the session lives in an HttpOnly cookie set by /api/auth/login.
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-const STORAGE_KEY = 'sharedNotes.employeeId';
 
-const state = { teams: [], topics: [], editing: null /* note being edited, or null for create */ };
+const state = { me: null, teams: [], topics: [], editing: null /* note being edited, or null for create */ };
 
 // ---------- API helper ----------
 
@@ -13,11 +12,14 @@ class ApiError extends Error {
 }
 
 async function api(method, path, body) {
-  const headers = { 'X-Employee-Id': $('employee').value };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const headers = body === undefined ? {} : { 'Content-Type': 'application/json' };
   const res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   if (res.status === 204) return null;
   const data = await res.json().catch(() => null);
+  if (res.status === 401 && state.me && !path.startsWith('/api/auth/')) {
+    showLogin('Your session has ended. Please sign in again.');   // expired or signed out elsewhere
+    throw new ApiError(401, 'Not signed in');
+  }
   if (!res.ok) {
     const detail = data?.errors ? Object.values(data.errors).flat().join(' ') : (data?.detail || data?.title || res.statusText);
     throw new ApiError(res.status, detail);
@@ -197,21 +199,105 @@ async function deleteNote(note) {
   }
 }
 
+
+// ---------- Session ----------
+
+let demoInfo = null;   // set only when the server has Demo:QuickSwitch enabled
+
+async function loadDemoInfo() {
+  try {
+    const res = await fetch('/api/demo/info');
+    demoInfo = res.ok ? await res.json() : null;
+  } catch { demoInfo = null; }
+  $('demo-banner').classList.toggle('hidden', !demoInfo);
+  $('demo-hint').classList.toggle('hidden', !demoInfo);
+  if (demoInfo) {
+    $('demo-hint').textContent = 'Demo accounts (password "' + demoInfo.password + '"): ' +
+      demoInfo.employees.map((e) => `${e.email} (${e.role})`).join(', ');
+  }
+}
+
+function setLoginError(text) {
+  $('login-error').textContent = text || '';
+  $('login-error').classList.toggle('hidden', !text);
+}
+
+function showLogin(notice) {
+  state.me = null;
+  $('app').classList.add('hidden');
+  $('session').classList.add('hidden');
+  $('login').classList.remove('hidden');
+  $('l-password').value = '';
+  setLoginError(notice);
+  loadDemoInfo();
+}
+
+async function showApp(me) {
+  state.me = me;
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('session').classList.remove('hidden');
+  $('whoami').textContent = `${me.name} (${me.role})`;
+
+  // Demo quick-switch: only available when the server allows it.
+  await loadDemoInfo();
+  $('switch-row').classList.toggle('hidden', !demoInfo);
+  if (demoInfo) {
+    fillSelect($('employee'), null, demoInfo.employees, 'employeeId', 'name');
+    $('employee').value = me.employeeId;
+  }
+  await refreshAll();
+}
+
+async function onLogin(event) {
+  event.preventDefault();
+  $('l-submit').disabled = true;
+  try {
+    const me = await api('POST', '/api/auth/login', { email: $('l-email').value.trim(), password: $('l-password').value });
+    await showApp(me);
+  } catch (e) {
+    setLoginError(e.status === 429 ? 'Too many attempts. Wait a minute and try again.' : e.message);
+  } finally {
+    $('l-submit').disabled = false;
+  }
+}
+
+async function onSwitchEmployee() {
+  try {
+    const res = await fetch('/api/demo/login/' + $('employee').value, { method: 'POST' });
+    if (!res.ok) throw new ApiError(res.status, 'Could not switch employee.');
+    await showApp(await api('GET', '/api/auth/me'));
+  } catch (e) {
+    showMessage(e.message, true);
+  }
+}
+
+async function onChangePassword(event) {
+  event.preventDefault();
+  try {
+    await api('POST', '/api/auth/change-password', { currentPassword: $('p-current').value, newPassword: $('p-new').value });
+    $('password-dialog').close();
+    showMessage('Password changed.');
+  } catch (e) {
+    $('password-error').textContent = e.message;
+    $('password-error').classList.remove('hidden');
+  }
+}
+
 // ---------- Startup ----------
 
-async function init() {
-  try {
-    const employees = await (await fetch('/api/demo/employees')).json();
-    fillSelect($('employee'), null, employees, 'employeeId', 'name');
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && employees.some((e) => String(e.employeeId) === saved)) $('employee').value = saved;
-  } catch {
-    $('status').textContent = '';
-    showMessage('Could not reach the API.', true);
-    return;
-  }
+function init() {
+  $('login-form').addEventListener('submit', onLogin);
+  $('logout').addEventListener('click', async () => { await api('POST', '/api/auth/logout').catch(() => {}); showLogin(''); });
+  $('employee').addEventListener('change', onSwitchEmployee);
+  $('change-password').addEventListener('click', () => {
+    $('password-form').reset();
+    $('password-error').classList.add('hidden');
+    $('password-dialog').showModal();
+  });
+  $('p-cancel').addEventListener('click', () => $('password-dialog').close());
+  $('password-form').addEventListener('submit', onChangePassword);
 
-  $('employee').addEventListener('change', () => { localStorage.setItem(STORAGE_KEY, $('employee').value); refreshAll(); });
   let searchTimer;
   $('f-search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadNotes, 250); });
   for (const id of ['f-visibility', 'f-team', 'f-topic']) $(id).addEventListener('change', loadNotes);
@@ -221,8 +307,9 @@ async function init() {
   $('cancel').addEventListener('click', () => $('editor').close());
   $('reload-note').addEventListener('click', reloadEditingNote);
 
-  localStorage.setItem(STORAGE_KEY, $('employee').value);
-  await refreshAll();
+  // Already signed in (valid cookie)? Go straight to the app.
+  fetch('/api/auth/me').then((res) => (res.ok ? res.json() : null)).then((me) => (me ? showApp(me) : showLogin('')))
+    .catch(() => showLogin('Could not reach the API.'));
 }
 
 init();

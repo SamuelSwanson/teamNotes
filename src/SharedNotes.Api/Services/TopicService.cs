@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using SharedNotes.Api.Data;
 using SharedNotes.Api.DTOs;
+using SharedNotes.Api.Identity;
 using SharedNotes.Api.Middleware;
 using SharedNotes.Api.Models;
 
 namespace SharedNotes.Api.Services;
 
-public class TopicService(AppDbContext db)
+public class TopicService(AppDbContext db, CurrentEmployeeAccessor current)
 {
     public Task<List<TopicDto>> ListAsync() => db.Topics.AsNoTracking().OrderBy(t => t.Name).Select(ToDto).ToListAsync();
 
@@ -27,6 +28,7 @@ public class TopicService(AppDbContext db)
 
     public async Task<TopicDto> UpdateAsync(int id, TopicRequest r)
     {
+        current.RequireAdmin();
         var topic = await db.Topics.FindAsync(id) ?? throw ApiException.NotFound($"Topic {id} not found.");
         var name = r.Name.Trim();
         if (await db.Topics.AnyAsync(t => t.Name == name && t.TopicId != id))
@@ -41,6 +43,7 @@ public class TopicService(AppDbContext db)
     /// <summary>Deletes the topic and its note links (database cascade). The notes themselves are kept.</summary>
     public async Task DeleteAsync(int id)
     {
+        current.RequireAdmin();
         var topic = await db.Topics.FindAsync(id) ?? throw ApiException.NotFound($"Topic {id} not found.");
         db.Topics.Remove(topic);
         await db.SaveChangesAsync();

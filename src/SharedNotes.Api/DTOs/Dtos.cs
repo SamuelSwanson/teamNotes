@@ -72,6 +72,20 @@ public class EmployeeRequest
 {
     [Required, StringLength(100)] public string Name { get; set; } = "";
     [Required, EmailAddress, StringLength(254)] public string Email { get; set; } = "";
+    [Required, StringLength(100, MinimumLength = 8)] public string Password { get; set; } = "";
+    public EmployeeRole? Role { get; set; }
+}
+
+public class LoginRequest
+{
+    [Required] public string Email { get; set; } = "";
+    [Required] public string Password { get; set; } = "";
+}
+
+public class ChangePasswordRequest
+{
+    [Required] public string CurrentPassword { get; set; } = "";
+    [Required, StringLength(100, MinimumLength = 8)] public string NewPassword { get; set; } = "";
 }
 
 public class TeamSummaryDto
@@ -86,6 +100,7 @@ public class EmployeeDto
     public int EmployeeId { get; set; }
     public string Name { get; set; } = "";
     public string Email { get; set; } = "";
+    public EmployeeRole Role { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<TeamSummaryDto> Teams { get; set; } = [];
 }

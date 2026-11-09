@@ -2,11 +2,16 @@ namespace SharedNotes.Api.Models;
 
 public enum Visibility { Private, Team, All }
 
+public enum EmployeeRole { Employee, Admin }
+
 public class Employee
 {
     public int EmployeeId { get; set; }
     public string Name { get; set; } = "";
     public string Email { get; set; } = "";
+    /// <summary>PBKDF2 hash (see PasswordHasher). Null means the account cannot sign in with a password.</summary>
+    public string? PasswordHash { get; set; }
+    public EmployeeRole Role { get; set; } = EmployeeRole.Employee;
     public DateTime CreatedAt { get; set; }
     public List<TeamMember> Memberships { get; set; } = [];
 }

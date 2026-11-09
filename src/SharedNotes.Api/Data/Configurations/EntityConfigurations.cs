@@ -11,6 +11,8 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         b.Property(e => e.Name).IsRequired().HasMaxLength(100);
         b.Property(e => e.Email).IsRequired().HasMaxLength(254).UseCollation("NOCASE");
         b.HasIndex(e => e.Email).IsUnique();
+        b.Property(e => e.PasswordHash).HasMaxLength(200);
+        b.Property(e => e.Role).HasConversion<string>().HasMaxLength(10).HasDefaultValue(EmployeeRole.Employee);
         b.HasData(SeedData.Employees);
     }
 }

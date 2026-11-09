@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using SharedNotes.Api.Data;
 using SharedNotes.Api.DTOs;
+using SharedNotes.Api.Identity;
 using SharedNotes.Api.Middleware;
 using SharedNotes.Api.Models;
 
 namespace SharedNotes.Api.Services;
 
-public class EmployeeService(AppDbContext db)
+public class EmployeeService(AppDbContext db, CurrentEmployeeAccessor current)
 {
     public Task<List<EmployeeDto>> ListAsync() => Project(db.Employees.AsNoTracking().OrderBy(e => e.Name)).ToListAsync();
 
@@ -16,11 +17,12 @@ public class EmployeeService(AppDbContext db)
 
     public async Task<EmployeeDto> CreateAsync(EmployeeRequest r)
     {
+        current.RequireAdmin();
         var email = r.Email.Trim();
         if (await db.Employees.AnyAsync(e => e.Email == email))
             throw ApiException.Conflict($"An employee with email '{email}' already exists.");
 
-        var employee = new Employee { Name = r.Name.Trim(), Email = email, CreatedAt = DateTime.UtcNow };
+        var employee = new Employee { Name = r.Name.Trim(), Email = email, PasswordHash = PasswordHasher.Hash(r.Password), Role = r.Role ?? EmployeeRole.Employee, CreatedAt = DateTime.UtcNow };
         db.Employees.Add(employee);
         await db.SaveChangesAsync();
         return await GetAsync(employee.EmployeeId);
@@ -31,6 +33,7 @@ public class EmployeeService(AppDbContext db)
         EmployeeId = e.EmployeeId,
         Name = e.Name,
         Email = e.Email,
+        Role = e.Role,
         CreatedAt = e.CreatedAt,
         Teams = e.Memberships.OrderBy(m => m.Team.Name)
             .Select(m => new TeamSummaryDto { TeamId = m.TeamId, Name = m.Team.Name, Role = m.Role })

@@ -39,3 +39,10 @@ fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 12px
 .topic-list label { margin: 0; display: flex; gap: 6px; align-items: center; color: var(--text); }
 .topic-list input { width: auto; margin: 0; }
 .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.login { max-width: 380px; margin: 40px auto; padding: 0 16px; }
+.login form { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+.login h2 { margin-top: 0; }
+.login label { display: block; margin-bottom: 12px; color: var(--muted); font-size: .9rem; }
+.login input { display: block; width: 100%; margin-top: 4px; color: var(--text); }
+.hint { font-size: .85rem; color: var(--muted); margin-bottom: 0; }
+#session { flex-wrap: wrap; }

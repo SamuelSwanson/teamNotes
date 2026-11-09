@@ -5,7 +5,7 @@ namespace SharedNotes.Tests;
 public record Member(int EmployeeId, string Name, string Email, string? Role);
 public record Team(int TeamId, string Name, List<Member> Members);
 public record TeamSummary(int TeamId, string Name, string? Role);
-public record Employee(int EmployeeId, string Name, string Email, List<TeamSummary> Teams);
+public record Employee(int EmployeeId, string Name, string Email, string Role, List<TeamSummary> Teams);
 
 public class RelationshipTests : IDisposable
 {
@@ -65,11 +65,11 @@ public class RelationshipTests : IDisposable
     [Fact]
     public async Task CreateEmployee_Works_AndDuplicateEmailIsRejected()
     {
-        var created = await (await _alice.PostJsonAsync("/api/employees", new { name = "Eve", email = "eve@example.com" }))
+        var created = await (await _alice.PostJsonAsync("/api/employees", new { name = "Eve", email = "eve@example.com", password = "EvePassword1" }))
             .ReadAsync<Employee>(HttpStatusCode.Created);
         Assert.Equal("Eve", created.Name);
-        Assert.Equal(HttpStatusCode.Conflict, (await _alice.PostJsonAsync("/api/employees", new { name = "Eve2", email = "EVE@example.com" })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await _alice.PostJsonAsync("/api/employees", new { name = "Bad", email = "not-an-email" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await _alice.PostJsonAsync("/api/employees", new { name = "Eve2", email = "EVE@example.com", password = "EvePassword1" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _alice.PostJsonAsync("/api/employees", new { name = "Bad", email = "not-an-email", password = "EvePassword1" })).StatusCode);
     }
 
     [Fact]

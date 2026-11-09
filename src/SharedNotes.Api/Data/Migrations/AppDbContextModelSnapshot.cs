@@ -37,6 +37,17 @@ namespace SharedNotes.Api.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Employee");
+
                     b.HasKey("EmployeeId");
 
                     b.HasIndex("Email")
@@ -49,29 +60,33 @@ namespace SharedNotes.Api.Data.Migrations
                         {
                             EmployeeId = 1,
                             CreatedAt = new DateTime(2026, 1, 5, 9, 0, 0, 0, DateTimeKind.Utc),
-                            Email = "alice@example.com",
-                            Name = "Alice Chen"
+                            Email = "admin@notes.com",
+                            Name = "Alice Chen",
+                            Role = "Admin"
                         },
                         new
                         {
                             EmployeeId = 2,
                             CreatedAt = new DateTime(2026, 1, 5, 9, 0, 0, 0, DateTimeKind.Utc),
-                            Email = "bob@example.com",
-                            Name = "Bob Martinez"
+                            Email = "bob@notes.com",
+                            Name = "Bob Martinez",
+                            Role = "Employee"
                         },
                         new
                         {
                             EmployeeId = 3,
                             CreatedAt = new DateTime(2026, 1, 5, 9, 0, 0, 0, DateTimeKind.Utc),
-                            Email = "carol@example.com",
-                            Name = "Carol Singh"
+                            Email = "carol@notes.com",
+                            Name = "Carol Singh",
+                            Role = "Employee"
                         },
                         new
                         {
                             EmployeeId = 4,
                             CreatedAt = new DateTime(2026, 1, 5, 9, 0, 0, 0, DateTimeKind.Utc),
-                            Email = "dave@example.com",
-                            Name = "Dave Okafor"
+                            Email = "dave@notes.com",
+                            Name = "Dave Okafor",
+                            Role = "Employee"
                         });
                 });
 

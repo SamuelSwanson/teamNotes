@@ -9,10 +9,11 @@ public static class SeedData
 
     public static readonly Employee[] Employees =
     [
-        new() { EmployeeId = 1, Name = "Alice Chen", Email = "alice@example.com", CreatedAt = Seeded },
-        new() { EmployeeId = 2, Name = "Bob Martinez", Email = "bob@example.com", CreatedAt = Seeded },
-        new() { EmployeeId = 3, Name = "Carol Singh", Email = "carol@example.com", CreatedAt = Seeded },
-        new() { EmployeeId = 4, Name = "Dave Okafor", Email = "dave@example.com", CreatedAt = Seeded },
+        // Alice is the demo administrator. Passwords are not stored in the migration; see DemoSeeder.
+        new() { EmployeeId = 1, Name = "Alice Chen", Email = "admin@notes.com", Role = EmployeeRole.Admin, CreatedAt = Seeded },
+        new() { EmployeeId = 2, Name = "Bob Martinez", Email = "bob@notes.com", CreatedAt = Seeded },
+        new() { EmployeeId = 3, Name = "Carol Singh", Email = "carol@notes.com", CreatedAt = Seeded },
+        new() { EmployeeId = 4, Name = "Dave Okafor", Email = "dave@notes.com", CreatedAt = Seeded },
     ];
 
     public static readonly Team[] Teams =

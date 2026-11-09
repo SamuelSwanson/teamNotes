@@ -9,14 +9,30 @@
 <body>
   <header class="topbar">
     <h1>Shared Notes</h1>
-    <label class="who">Acting as
-      <select id="employee" aria-label="Demo employee"></select>
-    </label>
+    <div id="session" class="who hidden">
+      <label id="switch-row" class="hidden">Demo switch
+        <select id="employee" aria-label="Switch demo employee"></select>
+      </label>
+      <span id="whoami"></span>
+      <button id="change-password" type="button">Change password</button>
+      <button id="logout" type="button">Log out</button>
+    </div>
   </header>
 
-  <p class="demo-banner">Demo identity only: the selected employee is sent as an <code>X-Employee-Id</code> header. This is not real authentication.</p>
+  <p id="demo-banner" class="demo-banner hidden">Demo mode: the quick-switch signs in as any seeded employee without a password. It is disabled unless <code>Demo:QuickSwitch</code> is on.</p>
 
-  <main>
+  <section id="login" class="login hidden">
+    <form id="login-form">
+      <h2>Sign in</h2>
+      <div id="login-error" class="message error hidden" role="alert"></div>
+      <label>Email <input id="l-email" type="email" required autocomplete="username"></label>
+      <label>Password <input id="l-password" type="password" required autocomplete="current-password"></label>
+      <button type="submit" class="primary" id="l-submit">Sign in</button>
+      <p id="demo-hint" class="hint hidden"></p>
+    </form>
+  </section>
+
+  <main id="app" class="hidden">
     <div id="message" role="status" class="message hidden"></div>
 
     <section class="filters" aria-label="Filters">
@@ -58,6 +74,19 @@
         <button type="button" id="reload-note" class="hidden">Reload latest</button>
         <button type="button" id="cancel">Cancel</button>
         <button type="submit" class="primary" id="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="password-dialog">
+    <form id="password-form" method="dialog">
+      <h2>Change password</h2>
+      <div id="password-error" class="message error hidden" role="alert"></div>
+      <label>Current password <input id="p-current" type="password" required autocomplete="current-password"></label>
+      <label>New password (8+ characters) <input id="p-new" type="password" required minlength="8" autocomplete="new-password"></label>
+      <div class="actions">
+        <button type="button" id="p-cancel">Cancel</button>
+        <button type="submit" class="primary">Change</button>
       </div>
     </form>
   </dialog>

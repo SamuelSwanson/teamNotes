@@ -11,6 +11,7 @@ public class ApiException(int status, string title, string detail) : Exception(d
     public string Title { get; } = title;
 
     public static ApiException BadRequest(string detail) => new(StatusCodes.Status400BadRequest, "Bad Request", detail);
+    public static ApiException Unauthorized(string detail) => new(StatusCodes.Status401Unauthorized, "Unauthorized", detail);
     public static ApiException Forbidden(string detail) => new(StatusCodes.Status403Forbidden, "Forbidden", detail);
     public static ApiException NotFound(string detail) => new(StatusCodes.Status404NotFound, "Not Found", detail);
     public static ApiException Conflict(string detail) => new(StatusCodes.Status409Conflict, "Conflict", detail);

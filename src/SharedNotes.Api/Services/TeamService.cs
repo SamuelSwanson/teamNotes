@@ -9,6 +9,8 @@ namespace SharedNotes.Api.Services;
 
 public class TeamService(AppDbContext db, CurrentEmployeeAccessor current)
 {
+    public const string LeadRole = "Lead";
+
     public Task<List<TeamDto>> ListAsync() => Project(db.Teams.AsNoTracking().OrderBy(t => t.Name)).ToListAsync();
 
     public async Task<TeamDto> GetAsync(int id) =>
@@ -22,7 +24,7 @@ public class TeamService(AppDbContext db, CurrentEmployeeAccessor current)
         if (await db.Teams.AnyAsync(t => t.Name == name)) throw ApiException.Conflict($"A team named '{name}' already exists.");
 
         var team = new Team { Name = name, CreatedAt = DateTime.UtcNow };
-        team.Members.Add(new TeamMember { EmployeeId = current.Required.EmployeeId });
+        team.Members.Add(new TeamMember { EmployeeId = current.Required.EmployeeId, Role = LeadRole });
         db.Teams.Add(team);
         await db.SaveChangesAsync();
         return await GetAsync(team.TeamId);
@@ -31,6 +33,7 @@ public class TeamService(AppDbContext db, CurrentEmployeeAccessor current)
     public async Task<TeamDto> AddMemberAsync(int teamId, AddMemberRequest r)
     {
         if (!await db.Teams.AnyAsync(t => t.TeamId == teamId)) throw ApiException.NotFound($"Team {teamId} not found.");
+        await EnsureCanManageAsync(teamId);
         var employeeId = r.EmployeeId!.Value;
         if (!await db.Employees.AnyAsync(e => e.EmployeeId == employeeId))
             throw ApiException.BadRequest($"Employee {employeeId} does not exist.");
@@ -45,10 +48,20 @@ public class TeamService(AppDbContext db, CurrentEmployeeAccessor current)
     public async Task RemoveMemberAsync(int teamId, int employeeId)
     {
         if (!await db.Teams.AnyAsync(t => t.TeamId == teamId)) throw ApiException.NotFound($"Team {teamId} not found.");
+        await EnsureCanManageAsync(teamId);
         var member = await db.TeamMembers.FirstOrDefaultAsync(m => m.TeamId == teamId && m.EmployeeId == employeeId)
                      ?? throw ApiException.NotFound($"Employee {employeeId} is not a member of team {teamId}.");
         db.TeamMembers.Remove(member);
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>Membership is managed by administrators and by the team's leads (members with Role "Lead").</summary>
+    private async Task EnsureCanManageAsync(int teamId)
+    {
+        if (current.IsAdmin) return;
+        var me = current.Required.EmployeeId;
+        if (!await db.TeamMembers.AnyAsync(m => m.TeamId == teamId && m.EmployeeId == me && m.Role == LeadRole))
+            throw ApiException.Forbidden("Only administrators and team leads can manage team members.");
     }
 
     private static IQueryable<TeamDto> Project(IQueryable<Team> q) => q.Select(t => new TeamDto
