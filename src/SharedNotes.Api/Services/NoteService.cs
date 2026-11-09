@@ -12,7 +12,7 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
 {
     private int Me => current.Required.EmployeeId;
 
-    public async Task<List<NoteDto>> ListAsync(NoteQuery q)
+    public async Task<PagedNotes> ListAsync(NoteQuery q)
     {
         var query = Accessible(Me);
 
@@ -21,9 +21,12 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
         if (q.CreatedBy is { } createdBy) query = query.Where(n => n.CreatedByEmployeeId == createdBy);
         if (q.Visibility is { } visibility) query = query.Where(n => n.Visibility == visibility);
         if (!string.IsNullOrWhiteSpace(q.Search))
-            return await SearchAsync(query, q.Search);
+            return await SearchAsync(query, q);
 
-        return await Project(query.OrderByDescending(n => n.UpdatedAt).ThenByDescending(n => n.NoteId), Me).ToListAsync();
+        var total = await query.CountAsync();
+        var items = await Project(query.OrderByDescending(n => n.UpdatedAt).ThenByDescending(n => n.NoteId)
+            .Skip((q.Page - 1) * q.PageSize).Take(q.PageSize), Me).ToListAsync();
+        return new PagedNotes(items, total);
     }
 
     private const int MaxSearchMatches = 1000;
@@ -33,21 +36,22 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
     /// The index finds candidate ids; they are then intersected with the notes this employee may read, so search never
     /// reveals notes they cannot access.
     /// </summary>
-    private async Task<List<NoteDto>> SearchAsync(IQueryable<Note> accessible, string search)
+    private async Task<PagedNotes> SearchAsync(IQueryable<Note> accessible, NoteQuery q)
     {
-        var match = ToFtsQuery(search);
-        if (match is null) return [];
+        var match = ToFtsQuery(q.Search!);
+        if (match is null) return new PagedNotes([], 0);
 
         var ranked = await db.Database.SqlQuery<int>(
             $"SELECT rowid AS Value FROM NotesFts WHERE NotesFts MATCH {match} ORDER BY bm25(NotesFts, 5.0, 1.0) LIMIT {MaxSearchMatches}")
             .ToListAsync();
-        if (ranked.Count == 0) return [];
+        if (ranked.Count == 0) return new PagedNotes([], 0);
 
         var allowed = (await accessible.Where(n => ranked.Contains(n.NoteId)).Select(n => n.NoteId).ToListAsync()).ToHashSet();
-        var ids = ranked.Where(allowed.Contains).ToList();
+        var matches = ranked.Where(allowed.Contains).ToList();
+        var ids = matches.Skip((q.Page - 1) * q.PageSize).Take(q.PageSize).ToList();
         var byId = (await Project(db.Notes.AsNoTracking().Where(n => ids.Contains(n.NoteId)), Me).ToListAsync())
             .ToDictionary(n => n.NoteId);
-        return ids.Select(id => byId[id]).ToList();
+        return new PagedNotes(ids.Select(id => byId[id]).ToList(), matches.Count);
     }
 
     /// <summary>

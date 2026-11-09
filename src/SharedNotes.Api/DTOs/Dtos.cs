@@ -22,6 +22,8 @@ public class UpdateNoteRequest : NoteRequest
     [Required] public Guid? ExpectedVersion { get; set; }
 }
 
+public record PagedNotes(List<NoteDto> Items, int Total);
+
 public class NoteQuery
 {
     public int? TeamId { get; set; }
@@ -29,6 +31,10 @@ public class NoteQuery
     public int? CreatedBy { get; set; }
     public Visibility? Visibility { get; set; }
     public string? Search { get; set; }
+    /// <summary>1-based page number.</summary>
+    [Range(1, int.MaxValue)] public int Page { get; set; } = 1;
+    /// <summary>Notes per page (1-100). The total is returned in the X-Total-Count header.</summary>
+    [Range(1, 100)] public int PageSize { get; set; } = 50;
 }
 
 public class NoteDto

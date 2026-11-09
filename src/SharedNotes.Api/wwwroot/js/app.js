@@ -3,7 +3,8 @@
 
 const $ = (id) => document.getElementById(id);
 
-const state = { me: null, teams: [], topics: [], editing: null /* note being edited, or null for create */ };
+const PAGE_SIZE = 10;
+const state = { page: 1, me: null, teams: [], topics: [], editing: null /* note being edited, or null for create */ };
 
 // ---------- API helper ----------
 
@@ -24,6 +25,7 @@ async function api(method, path, body) {
     const detail = data?.errors ? Object.values(data.errors).flat().join(' ') : (data?.detail || data?.title || res.statusText);
     throw new ApiError(res.status, detail);
   }
+  api.lastHeaders = res.headers;   // lets callers read e.g. X-Total-Count after the call
   return data;
 }
 
@@ -69,12 +71,18 @@ async function loadNotes() {
   add('visibility', $('f-visibility').value);
   add('teamId', $('f-team').value);
   add('topicId', $('f-topic').value);
+  params.set('page', state.page);
+  params.set('pageSize', PAGE_SIZE);
 
   $('status').textContent = 'Loading…';
   try {
     const notes = await api('GET', '/api/notes?' + params);
+    const total = Number(api.lastHeaders.get('X-Total-Count') ?? notes.length);
+    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    if (state.page > pages) { state.page = pages; return loadNotes(); }   // e.g. the last note on this page was deleted
     renderNotes(notes);
-    $('status').textContent = notes.length ? `${notes.length} note(s)` : 'No notes match.';
+    renderPager(total, pages);
+    $('status').textContent = total ? `${total} note(s)` : 'No notes match.';
   } catch (e) {
     $('notes').replaceChildren();
     $('status').textContent = '';
@@ -239,6 +247,7 @@ function showLogin(notice) {
 
 async function showApp(me) {
   state.me = me;
+  state.page = 1;
   startEvents();
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
@@ -305,8 +314,8 @@ function init() {
   $('password-form').addEventListener('submit', onChangePassword);
 
   let searchTimer;
-  $('f-search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadNotes, 250); });
-  for (const id of ['f-visibility', 'f-team', 'f-topic']) $(id).addEventListener('change', loadNotes);
+  $('f-search').addEventListener('input', () => { clearTimeout(searchTimer); state.page = 1; searchTimer = setTimeout(loadNotes, 250); });
+  for (const id of ['f-visibility', 'f-team', 'f-topic']) $(id).addEventListener('change', () => { state.page = 1; loadNotes(); });
   $('new-note').addEventListener('click', () => openEditor(null));
   $('n-visibility').addEventListener('change', updateTeamRow);
   $('note-form').addEventListener('submit', saveNote);
@@ -426,3 +435,16 @@ function stopEvents() {
 
 $('editor').addEventListener('close', endPresence);
 window.addEventListener('pagehide', () => { if (openNoteId()) endPresence(); });
+
+// ---------- Pagination ----------
+
+function renderPager(total, pages) {
+  $('pager').classList.toggle('hidden', pages <= 1);
+  $('page-info').textContent = `Page ${state.page} of ${pages}`;
+  $('prev-page').disabled = state.page <= 1;
+  $('next-page').disabled = state.page >= pages;
+}
+
+function goToPage(delta) { state.page += delta; loadNotes(); }
+$('prev-page').addEventListener('click', () => goToPage(-1));
+$('next-page').addEventListener('click', () => goToPage(1));

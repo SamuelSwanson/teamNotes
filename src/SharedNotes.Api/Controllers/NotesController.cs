@@ -9,7 +9,14 @@ namespace SharedNotes.Api.Controllers;
 public class NotesController(NoteService notes) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<NoteDto>>> List([FromQuery] NoteQuery query) => Ok(await notes.ListAsync(query));
+    public async Task<ActionResult<List<NoteDto>>> List([FromQuery] NoteQuery query)
+    {
+        var page = await notes.ListAsync(query);
+        Response.Headers["X-Total-Count"] = page.Total.ToString();   // total matches across all pages
+        Response.Headers["X-Page"] = query.Page.ToString();
+        Response.Headers["X-Page-Size"] = query.PageSize.ToString();
+        return Ok(page.Items);
+    }
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<NoteDto>> Get(int id) => Ok(await notes.GetAsync(id));

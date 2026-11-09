@@ -175,6 +175,7 @@ curl -b cookies.txt http://localhost:5115/api/notes
 | Method & path | Notes |
 |---|---|
 | `GET /api/notes` | Notes the current employee can access. Query: `teamId`, `topicId`, `createdBy`, `visibility`, `search`. Without `search`: newest update first. With `search`: full-text results, best match first (see below). |
+| `GET /api/notes` paging | `page` (default 1) and `pageSize` (default 50, max 100). The body stays a plain array; the response headers `X-Total-Count` (all matches), `X-Page` and `X-Page-Size` describe the page. A page past the end returns `[]`. Invalid values return `400`. Only the notes list is paged. Search results are paged too, over at most the 1000 best matches. |
 | `GET /api/notes/{id}` | `200`; `403` if no access; `404`. |
 | `POST /api/notes` | Body: `title`, `content`, `visibility`, `teamId` (required for `Team`, must be null otherwise), `topicIds?`. `201`; `400` bad input or unknown topic/team; `403` if not a member of `teamId`. Creator/updater come from the header, never the body. |
 | `PUT /api/notes/{id}` | Same body plus **`expectedVersion`** (required). `200` with the new `version`; `403` no access (or non-creator changing visibility/team); `409` if `expectedVersion` is stale. |
@@ -283,10 +284,11 @@ Not implemented, but worth doing with more time:
 
 - Further hardening of sign-in: account lockout, password reset by email, multi-factor authentication, single sign-on.
 - Collaborative co-editing (shared cursors, merging of simultaneous edits). Live updates and "also editing" notices exist, but conflicts are still resolved by reloading.
-- Pagination.
 - Attachments and notifications.
 - Frontend improvements (accessibility review, richer editing, a proper conflict-resolution view showing both versions).
 - A different database if write load grows, and reconsidering the monolith if modules need independent deployment.
+
+Notes on scale: pagination uses offset/limit, which is simple and fine at this size; for very large histories keyset pagination (cursor on `UpdatedAt, NoteId`) would be steadier under concurrent writes. Other collections (teams, topics, employees) are small and not paged.
 
 Lessons: choosing the concurrency token early shaped the API (`expectedVersion`, `409`); keeping the access rule in one query predicate made visibility easy to test; and testing against a real relational engine (SQLite in-memory) caught behaviour such as constraints and cascades that the EF InMemory provider would hide.
 
