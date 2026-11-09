@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="css/site.css">
 </head>
 <body>
+  <a class="skip-link" href="#app">Skip to notes</a>
   <header class="topbar">
     <h1>Shared Notes</h1>
     <div id="session" class="who hidden">
@@ -56,11 +57,23 @@
     </nav>
   </main>
 
-  <dialog id="editor">
+  <dialog id="editor" aria-labelledby="editor-title">
     <form id="note-form" method="dialog">
       <h2 id="editor-title">New note</h2>
       <div id="editor-error" class="message error hidden" role="alert"></div>
       <div id="editor-notice" class="message warn hidden" role="status"></div>
+      <section id="conflict" class="conflict hidden" aria-live="polite" aria-labelledby="conflict-title">
+        <h3 id="conflict-title">Someone else changed this note</h3>
+        <p class="hint" id="conflict-by"></p>
+        <table>
+          <thead><tr><th scope="col">Field</th><th scope="col">Your version</th><th scope="col">Latest saved</th></tr></thead>
+          <tbody id="conflict-rows"></tbody>
+        </table>
+        <div class="actions">
+          <button type="button" id="use-latest">Use latest (discard mine)</button>
+          <button type="button" id="keep-mine" class="danger">Keep mine (overwrite theirs)</button>
+        </div>
+      </section>
 
       <label>Title <input id="n-title" required maxlength="200"></label>
       <label>Content <textarea id="n-content" required rows="6" maxlength="20000"></textarea></label>
@@ -91,8 +104,8 @@
     </form>
   </dialog>
 
-  <dialog id="notifications-dialog">
-    <h2>Notifications</h2>
+  <dialog id="notifications-dialog" aria-labelledby="notifications-title">
+    <h2 id="notifications-title">Notifications</h2>
     <ul id="n-list" class="notif-list"></ul>
     <p id="n-empty" class="hint hidden">You have no notifications.</p>
     <div class="actions">
@@ -101,15 +114,15 @@
     </div>
   </dialog>
 
-  <dialog id="history-dialog">
+  <dialog id="history-dialog" aria-labelledby="history-title">
     <h2 id="history-title">History</h2>
     <div id="history-list"></div>
     <div class="actions"><button type="button" id="history-close">Close</button></div>
   </dialog>
 
-  <dialog id="password-dialog">
+  <dialog id="password-dialog" aria-labelledby="password-title">
     <form id="password-form" method="dialog">
-      <h2>Change password</h2>
+      <h2 id="password-title">Change password</h2>
       <div id="password-error" class="message error hidden" role="alert"></div>
       <label>Current password <input id="p-current" type="password" required autocomplete="current-password"></label>
       <label>New password (8+ characters) <input id="p-new" type="password" required minlength="8" autocomplete="new-password"></label>

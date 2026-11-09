@@ -310,6 +310,15 @@ New notifications are also pushed live over `GET /api/events` as a `notification
 - **Directory data:** any signed-in employee can create teams and topics; roles above govern the rest.
 - **Audit and history:** `CreatedAt/By` and `UpdatedAt/By` stay on `Notes` for quick display. In addition, every create and update writes an immutable snapshot to `NoteRevisions` in the same transaction as the note change, so a rejected (409) update leaves no history. History is readable by anyone who can read the note, and is deleted with the note. Restoring an old revision is not implemented; copy the content from the History view.
 
+## Browser interface
+
+A small vanilla HTML/CSS/JS client (no build step, no dependencies), served from `wwwroot`. It uses only the public REST API.
+
+- **Notes:** list with filters, full-text search, paging, create/edit/delete, topics, attachments, per-note history.
+- **Conflict resolution:** if a save is rejected with `409`, the editor shows your unsaved version beside the latest saved one, with differences highlighted, and you choose **Use latest (discard mine)** or **Keep mine (overwrite theirs)**. The second choice asks for confirmation and is an ordinary save with the latest `expectedVersion`, so it can still be rejected if the note changes again. Nothing is lost either way, because every saved version stays in the note's history.
+- **Live behaviour:** the list refreshes when others change notes; the editor shows who else is editing; a bell shows unread notifications.
+- **Accessibility and display:** keyboard-visible focus, a skip link, labelled dialogs, status and alert regions for messages, a layout that works on phones, and automatic light/dark mode following the operating-system setting. All text from the API is inserted with `textContent` (never as HTML), and the app's Content-Security-Policy forbids inline scripts.
+
 ## Design decisions
 
 ### Decision 1: Modular monolith vs. microservices
@@ -344,7 +353,7 @@ Not implemented, but worth doing with more time:
 - Further hardening of sign-in: account lockout, password reset by email, multi-factor authentication, single sign-on.
 - Collaborative co-editing (shared cursors, merging of simultaneous edits). Live updates and "also editing" notices exist, but conflicts are still resolved by reloading.
 - Email or push delivery of notifications, per-user notification preferences, and automatic clean-up of old notifications.
-- Frontend improvements (accessibility review, richer editing, a proper conflict-resolution view showing both versions).
+- Frontend: a formal accessibility audit with assistive technology, richer editing (Markdown preview), and automated browser tests. The UI is hand-checked in a browser, but unlike the API it has no automated test suite.
 - A different database if write load grows, and reconsidering the monolith if modules need independent deployment.
 
 Notes on scale: pagination uses offset/limit, which is simple and fine at this size; for very large histories keyset pagination (cursor on `UpdatedAt, NoteId`) would be steadier under concurrent writes. Other collections (teams, topics, employees) are small and not paged.

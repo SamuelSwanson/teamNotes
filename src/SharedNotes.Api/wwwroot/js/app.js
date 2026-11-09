@@ -132,6 +132,7 @@ function setEditorError(text) {
 }
 
 function populateEditor(note) {
+  hideConflict();
   state.editing = note;
   $('editor-title').textContent = note ? 'Edit note' : 'New note';
   $('n-title').value = note?.title ?? '';
@@ -184,12 +185,11 @@ async function saveNote(event) {
     await loadNotes();
   } catch (e) {
     if (e.status === 409) {
-      setEditorError('This note was modified by someone else since you opened it. Reload the latest version before editing further (your unsaved changes will be replaced).');
-      $('reload-note').classList.remove('hidden');
+      await showConflict(body);
     } else {
       setEditorError(e.message);
+      $('save').disabled = false;
     }
-    $('save').disabled = e.status === 409;   // block saving the stale copy until "Reload latest" is used
   }
 }
 
@@ -369,7 +369,7 @@ function openNoteId() { return $('editor').open && state.editing ? state.editing
 
 function renderEditorNotice() {
   const parts = [];
-  if (changedBy) parts.push(changedBy.deleted
+  if (changedBy && !conflict) parts.push(changedBy.deleted
     ? `${changedBy.name} deleted this note.`
     : `${changedBy.name} saved a newer version. Use "Reload latest" before saving, or your save will be rejected.`);
   if (otherEditors.size) parts.push(`${[...otherEditors.values()].join(', ')} ${otherEditors.size > 1 ? 'are' : 'is'} also editing this note.`);
@@ -558,3 +558,58 @@ $('n-read-all').addEventListener('click', async () => {
   renderNotifications();
 });
 $('n-close').addEventListener('click', () => $('notifications-dialog').close());
+
+// ---------- Conflict resolution ----------
+// When a save is rejected (409), show the user's unsaved version next to the latest saved one and let them choose.
+
+let conflict = null;   // { mine: request body, latest: note as currently saved }
+
+async function showConflict(mine) {
+  let latest;
+  try {
+    latest = await api('GET', `/api/notes/${state.editing.noteId}`);
+  } catch (e) {
+    setEditorError(e.status === 404 ? 'This note was deleted by someone else.' : 'You can no longer access this note.');
+    $('save').disabled = true;
+    return;
+  }
+  conflict = { mine, latest };
+
+  const teamName = (id) => state.teams.find((t) => t.teamId === id)?.name ?? '';
+  const where = (visibility, team) => (visibility === 'Team' ? `Team: ${team}` : visibility);
+  const mineTopics = state.topics.filter((t) => mine.topicIds.includes(t.topicId)).map((t) => t.name).sort().join(', ') || '—';
+  const latestTopics = latest.topics.map((t) => t.name).sort().join(', ') || '—';
+  const rows = [
+    ['Title', mine.title, latest.title],
+    ['Content', mine.content, latest.content],
+    ['Visibility', where(mine.visibility, teamName(mine.teamId)), where(latest.visibility, latest.teamName)],
+    ['Topics', mineTopics, latestTopics],
+  ];
+
+  setEditorError('');
+  $('conflict-by').textContent = `${latest.updatedByName} saved a newer version at ${new Date(latest.updatedAt).toLocaleString()}. Differences are highlighted.`;
+  $('conflict-rows').replaceChildren(...rows.map(([field, a, b]) => el('tr', { className: a === b ? '' : 'differs' },
+    el('th', { scope: 'row', textContent: field }), el('td', { textContent: a }), el('td', { textContent: b }))));
+  $('conflict').classList.remove('hidden');
+  $('save').disabled = true;   // saving is only possible through one of the two explicit choices below
+  $('reload-note').classList.add('hidden');
+  $('use-latest').focus();
+}
+
+function hideConflict() {
+  conflict = null;
+  $('conflict').classList.add('hidden');
+}
+
+$('use-latest').addEventListener('click', () => {
+  populateEditor(conflict.latest);   // replaces the form with the latest saved version
+  showMessage('Loaded the latest version.');
+});
+
+$('keep-mine').addEventListener('click', () => {
+  if (!confirm(`This will overwrite ${conflict.latest.updatedByName}'s changes with yours. Continue?`)) return;
+  state.editing = conflict.latest;   // adopt the latest version token; the form still holds my edits
+  hideConflict();
+  $('save').disabled = false;
+  $('note-form').requestSubmit();    // an ordinary save: still rejected if someone changes the note yet again
+});
