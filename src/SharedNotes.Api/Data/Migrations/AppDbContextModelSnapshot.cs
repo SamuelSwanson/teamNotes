@@ -418,6 +418,9 @@ namespace SharedNotes.Api.Data.Migrations
                     b.Property<int>("RecipientEmployeeId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("ShoutOutId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("TeamId")
                         .HasColumnType("INTEGER");
 
@@ -432,11 +435,64 @@ namespace SharedNotes.Api.Data.Migrations
 
                     b.HasIndex("NoteId");
 
+                    b.HasIndex("ShoutOutId");
+
                     b.HasIndex("TeamId");
 
                     b.HasIndex("RecipientEmployeeId", "ReadAt", "CreatedAt");
 
                     b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("SharedNotes.Api.Models.ShoutOut", b =>
+                {
+                    b.Property<int>("ShoutOutId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("NoteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ResolvedByEmployeeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Response")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SenderEmployeeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TeamId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ShoutOutId");
+
+                    b.HasIndex("NoteId");
+
+                    b.HasIndex("ResolvedByEmployeeId");
+
+                    b.HasIndex("SenderEmployeeId", "CreatedAt");
+
+                    b.HasIndex("TeamId", "ResolvedAt");
+
+                    b.ToTable("ShoutOuts");
                 });
 
             modelBuilder.Entity("SharedNotes.Api.Models.Team", b =>
@@ -664,6 +720,11 @@ namespace SharedNotes.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SharedNotes.Api.Models.ShoutOut", "ShoutOut")
+                        .WithMany()
+                        .HasForeignKey("ShoutOutId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SharedNotes.Api.Models.Team", "Team")
                         .WithMany()
                         .HasForeignKey("TeamId")
@@ -674,6 +735,41 @@ namespace SharedNotes.Api.Data.Migrations
                     b.Navigation("Note");
 
                     b.Navigation("Recipient");
+
+                    b.Navigation("ShoutOut");
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("SharedNotes.Api.Models.ShoutOut", b =>
+                {
+                    b.HasOne("SharedNotes.Api.Models.Note", "Note")
+                        .WithMany()
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SharedNotes.Api.Models.Employee", "ResolvedBy")
+                        .WithMany()
+                        .HasForeignKey("ResolvedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SharedNotes.Api.Models.Employee", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SharedNotes.Api.Models.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Note");
+
+                    b.Navigation("ResolvedBy");
+
+                    b.Navigation("Sender");
 
                     b.Navigation("Team");
                 });

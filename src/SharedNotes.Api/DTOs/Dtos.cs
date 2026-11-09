@@ -178,8 +178,42 @@ public class NotificationDto
     public string Message { get; set; } = "";
     public int? NoteId { get; set; }
     public int? TeamId { get; set; }
+    public int? ShoutOutId { get; set; }
     public int ActorEmployeeId { get; set; }
     public string ActorName { get; set; } = "";
     public DateTime CreatedAt { get; set; }
     public bool IsRead { get; set; }
+}
+
+public class ShoutOutRequest
+{
+    [Required] public ShoutOutKind? Kind { get; set; }
+    [Required, StringLength(500)] public string Message { get; set; } = "";
+    /// <summary>Optional note the team should look at. It must already be readable by the target team.</summary>
+    public int? NoteId { get; set; }
+}
+
+public class ResolveShoutOutRequest
+{
+    [StringLength(500)] public string? Response { get; set; }
+}
+
+public class ShoutOutDto
+{
+    public int ShoutOutId { get; set; }
+    public ShoutOutKind Kind { get; set; }
+    public string Message { get; set; } = "";
+    /// <summary>"Open" or "Resolved".</summary>
+    public string Status { get; set; } = "";
+    public int TeamId { get; set; }
+    public string TeamName { get; set; } = "";
+    public int? NoteId { get; set; }
+    /// <summary>Only filled in when the viewer can currently read the note.</summary>
+    public string? NoteTitle { get; set; }
+    public int SenderEmployeeId { get; set; }
+    public string SenderName { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    public string? ResolvedByName { get; set; }
+    public string? Response { get; set; }
 }

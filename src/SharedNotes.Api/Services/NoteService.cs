@@ -208,6 +208,14 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current, NoteE
         return presence.Editors(id, Me).Select(e => new EditorDto { EmployeeId = e.EmployeeId, Name = e.Name }).ToList();
     }
 
+    /// <summary>Which of the given notes the current employee may read (used to avoid leaking titles).</summary>
+    public async Task<HashSet<int>> ReadableNoteIdsAsync(IEnumerable<int> noteIds)
+    {
+        var ids = noteIds.Distinct().ToList();
+        if (ids.Count == 0) return [];
+        return (await Accessible(Me).Where(n => ids.Contains(n.NoteId)).Select(n => n.NoteId).ToListAsync()).ToHashSet();
+    }
+
     /// <summary>Lets other clients know the note changed in a way that does not touch its Version (e.g. attachments).</summary>
     public async Task NotifyChangedAsync(int id)
     {

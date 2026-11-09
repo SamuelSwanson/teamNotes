@@ -14,6 +14,7 @@
       <label id="switch-row" class="hidden">Demo switch
         <select id="employee" aria-label="Switch demo employee"></select>
       </label>
+      <button id="requests-btn" type="button">Team requests</button>
       <button id="bell" type="button" aria-label="Notifications">Notifications <span id="unread" class="badge hidden">0</span></button>
       <span id="whoami"></span>
       <button id="change-password" type="button">Change password</button>
@@ -100,6 +101,46 @@
         <button type="button" id="reload-note" class="hidden">Reload latest</button>
         <button type="button" id="cancel">Cancel</button>
         <button type="submit" class="primary" id="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="requests-dialog" aria-labelledby="requests-title">
+    <h2 id="requests-title">Team requests</h2>
+    <div class="tabs" role="group" aria-label="Which requests">
+      <button type="button" id="rq-tab-inbox" aria-pressed="true">Inbox (to my teams)</button>
+      <button type="button" id="rq-tab-sent" aria-pressed="false">Sent by me</button>
+      <label class="inline"><input type="checkbox" id="rq-resolved"> Show resolved</label>
+    </div>
+    <ul id="rq-list" class="requests"></ul>
+    <p id="rq-empty" class="hint hidden">Nothing here.</p>
+    <div class="actions">
+      <button type="button" id="rq-new" class="primary">Ask a team…</button>
+      <button type="button" id="rq-close">Close</button>
+    </div>
+  </dialog>
+
+  <dialog id="shout-dialog" aria-labelledby="shout-title">
+    <form id="shout-form" method="dialog">
+      <h2 id="shout-title">Ask a team</h2>
+      <div id="shout-error" class="message error hidden" role="alert"></div>
+      <p id="shout-note" class="hint hidden"></p>
+      <label>Team
+        <select id="s-team" required></select>
+      </label>
+      <label>What do you need?
+        <select id="s-kind">
+          <option value="Review">Please review</option>
+          <option value="Edit">Please edit</option>
+          <option value="Answer">I need an answer</option>
+          <option value="Info">Just letting you know</option>
+        </select>
+      </label>
+      <label>Message <textarea id="s-message" required rows="4" maxlength="500"></textarea></label>
+      <p class="hint">Every member of the team is notified. If you attach a note, the team must already be able to read it.</p>
+      <div class="actions">
+        <button type="button" id="s-cancel">Cancel</button>
+        <button type="submit" class="primary" id="s-send">Send</button>
       </div>
     </form>
   </dialog>

@@ -6,7 +6,7 @@ A small note-taking service shared among teams in an organization, with a REST A
 
 Employees capture, organize, search and edit notes. Each note is **Private** (only its creator), **Team** (members of one team) or **All** (every employee). Only the creator can delete a note. Concurrent edits are detected so one person cannot silently overwrite another's changes.
 
-**Scope:** notes, teams (with membership), employees, topics (tags), visibility rules, filtering/search, optimistic concurrency, a demo browser client and integration tests. **Out of scope:** production authentication, roles, note history, pagination, attachments, real-time collaboration.
+**Scope:** notes, teams with membership and team leads, employees with roles and email/password sign-in, topics, visibility rules, full-text search with paging, optimistic concurrency with a conflict-resolution view, note history, attachments, live updates, notifications, team shout-outs, a browser client and an integration test suite. **Not included:** single sign-on, email delivery, note restore/rollback, and collaborative co-editing.
 
 > **Sign-in:** local email + password. Passwords are hashed with PBKDF2-SHA256 and the session is an HttpOnly, SameSite=Strict cookie. The seeded accounts and the demo quick-switch described below exist **only in Development** and use made-up credentials. Run behind HTTPS in any real deployment.
 
@@ -54,6 +54,7 @@ tests/SharedNotes.Tests/
 - **NoteRevisions** – one immutable snapshot per create/update (title, content, visibility, team name, topic names, the note `Version` it produced, who and when). Cascade-deleted with the note.
 - **NoteAttachments** – metadata for files attached to a note (sanitized display name, allow-listed content type, size, random on-disk name, uploader). The bytes are stored on disk, not in SQLite. Cascade-deleted with the note (the files are removed too).
 - **Notifications** – an in-app message for one recipient (type, fixed message text, optional link to a note or team, who caused it, `ReadAt`). Deleted with the recipient; if the note or team it mentions is deleted, the link is cleared but the message stays.
+- **ShoutOuts** – a request from one employee to a whole team: kind (`Review`/`Edit`/`Answer`/`Info`), message, optional note, and, once handled, who resolved it, when, and an optional response.
 
 Delete behaviour: deleting a note, topic, team or employee **cascades only to join rows** (`NoteTopics`, `TeamMembers`). Notes reference employees and teams with `RESTRICT`, so nobody can be deleted out from under a note. (There are no endpoints to delete employees or teams.)
 
@@ -69,6 +70,8 @@ erDiagram
     Employees ||--o{ NoteRevisions : "edited by"
     Notes ||--o{ NoteAttachments : "has files"
     Employees ||--o{ Notifications : "receives"
+    Employees ||--o{ ShoutOuts : "sends"
+    Teams ||--o{ ShoutOuts : "receives"
     Employees { int EmployeeId PK
         string Name
         string Email UK
@@ -116,7 +119,17 @@ erDiagram
         string Message
         int NoteId FK
         int TeamId FK
+        int ShoutOutId FK
         datetime ReadAt }
+    ShoutOuts { int ShoutOutId PK
+        int SenderEmployeeId FK
+        int TeamId FK
+        int NoteId FK
+        string Kind
+        string Message
+        datetime ResolvedAt
+        int ResolvedByEmployeeId FK
+        string Response }
 ```
 
 ## Running locally
@@ -284,6 +297,8 @@ Each employee has a private inbox. Notifications are created by these events (yo
 | Someone else edits a note you created | The creator, only if they can still read the note | `note-edited` |
 | A Team note is created | The other members of that team | `note-shared` |
 | You are added to a team | The new member | `team-added` |
+| A shout-out is sent to your team | Every member of the target team | `shout-out` |
+| Your shout-out is resolved | The sender | `shout-out-resolved` |
 
 | Endpoint | Behaviour |
 |---|---|
@@ -293,6 +308,26 @@ Each employee has a private inbox. Notifications are created by these events (yo
 | `POST /api/notifications/read-all` | `204`; marks only your own. |
 
 New notifications are also pushed live over `GET /api/events` as a `notification` event that is delivered **only to the recipient**; the UI shows an unread badge on the bell and a toast. Notifications are best-effort: if one cannot be stored, the error is logged and the action that triggered it still succeeds. Message text is fixed when the notification is created, so it can show an old note title. Old notifications are not cleaned up automatically.
+
+### Team shout-outs
+
+A shout-out is a message to a **whole team**, asking for something: a review, an edit, an answer, or just "FYI". Anyone can send one to **any** team, including teams they are not in, which is the point: it is how people reach other teams. Every member of the target team gets a notification (live, via the event stream), and the request stays **open** in their inbox until someone resolves it.
+
+| Endpoint | Behaviour |
+|---|---|
+| `POST /api/teams/{teamId}/shoutouts` `{kind, message, noteId?}` | `201`. `kind` is `Review`, `Edit`, `Answer` or `Info`; `message` is 1-500 characters. `404` unknown team or note; `403` if you cannot read the note you point at; `400` if the target team cannot read that note; `429` after 10 shout-outs in an hour. |
+| `GET /api/shoutouts?box=inbox\|sent&status=open\|resolved\|all` | Defaults `inbox` + `open`. **inbox** = addressed to teams you belong to; **sent** = sent by you. Newest first, up to 50. |
+| `GET /api/shoutouts/{id}` | Only the sender and members of the target team (`403` otherwise). |
+| `POST /api/shoutouts/{id}/resolve` `{response?}` | Members of the target team or the sender. Notifies the sender with the optional response. `409` if already resolved. |
+
+Design choices:
+
+- **A shout-out never grants access.** Pointing at a note requires that the target team can *already* read it (visibility `All`, or a `Team` note of that same team). Otherwise the request is rejected with a message telling the sender to share the note first. This avoids a back door around the visibility rules.
+- **The note title is shown only to people who can read the note right now.** If the note is made private afterwards, recipients see the request but not its title.
+- **Two-way, without threads:** resolving can carry a short response, and the sender is notified. Longer discussion happens on the note itself.
+- **Simple spam guard:** 10 per sender per hour. There is no per-team muting or preferences.
+
+In the UI: **Team requests** in the header opens the inbox (open requests, with an optional reply field and a Resolve button) and a "Sent by me" tab; **Ask a team** on a note card prefills the note; notifications for shout-outs open the inbox.
 
 ### Live updates and editing presence
 

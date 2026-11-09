@@ -12,6 +12,8 @@ public static class NotificationTypes
     public const string NoteEdited = "note-edited";
     public const string NoteShared = "note-shared";
     public const string TeamAdded = "team-added";
+    public const string ShoutOut = "shout-out";
+    public const string ShoutOutResolved = "shout-out-resolved";
 }
 
 /// <summary>
@@ -24,7 +26,7 @@ public class NotificationService(AppDbContext db, CurrentEmployeeAccessor curren
     private int Me => current.Required.EmployeeId;
 
     /// <summary>Notifies the given employees (never the acting employee). Callers pass only people who may see the subject.</summary>
-    public async Task NotifyAsync(IEnumerable<int> recipientIds, string type, string message, int? noteId = null, int? teamId = null)
+    public async Task NotifyAsync(IEnumerable<int> recipientIds, string type, string message, int? noteId = null, int? teamId = null, int? shoutOutId = null)
     {
         var actor = current.Required;
         var recipients = recipientIds.Distinct().Where(id => id != actor.EmployeeId).ToList();
@@ -39,6 +41,7 @@ public class NotificationService(AppDbContext db, CurrentEmployeeAccessor curren
             Message = message.Length > 500 ? message[..499] + "…" : message,
             NoteId = noteId,
             TeamId = teamId,
+            ShoutOutId = shoutOutId,
             CreatedAt = now,
         }).ToList();
 
@@ -72,6 +75,7 @@ public class NotificationService(AppDbContext db, CurrentEmployeeAccessor curren
                 Message = n.Message,
                 NoteId = n.NoteId,
                 TeamId = n.TeamId,
+                ShoutOutId = n.ShoutOutId,
                 ActorEmployeeId = n.ActorEmployeeId,
                 ActorName = n.Actor.Name,
                 CreatedAt = n.CreatedAt,

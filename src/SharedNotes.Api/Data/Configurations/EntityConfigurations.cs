@@ -140,9 +140,30 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
         b.HasOne(n => n.Actor).WithMany().HasForeignKey(n => n.ActorEmployeeId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(n => n.Note).WithMany().HasForeignKey(n => n.NoteId).OnDelete(DeleteBehavior.SetNull);
         b.HasOne(n => n.Team).WithMany().HasForeignKey(n => n.TeamId).OnDelete(DeleteBehavior.SetNull);
+        b.HasOne(n => n.ShoutOut).WithMany().HasForeignKey(n => n.ShoutOutId).OnDelete(DeleteBehavior.SetNull);
         b.HasIndex(n => new { n.RecipientEmployeeId, n.ReadAt, n.CreatedAt });
         b.HasIndex(n => n.ActorEmployeeId);
         b.HasIndex(n => n.NoteId);
         b.HasIndex(n => n.TeamId);
+    }
+}
+
+public class ShoutOutConfiguration : IEntityTypeConfiguration<ShoutOut>
+{
+    public void Configure(EntityTypeBuilder<ShoutOut> b)
+    {
+        b.HasKey(s => s.ShoutOutId);
+        b.Property(s => s.Kind).HasConversion<string>().HasMaxLength(10);
+        b.Property(s => s.Message).IsRequired().HasMaxLength(500);
+        b.Property(s => s.Response).HasMaxLength(500);
+        // A request belongs to its target team and sender; the linked note may be deleted later (the link is just cleared).
+        b.HasOne(s => s.Sender).WithMany().HasForeignKey(s => s.SenderEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(s => s.Team).WithMany().HasForeignKey(s => s.TeamId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(s => s.Note).WithMany().HasForeignKey(s => s.NoteId).OnDelete(DeleteBehavior.SetNull);
+        b.HasOne(s => s.ResolvedBy).WithMany().HasForeignKey(s => s.ResolvedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(s => new { s.TeamId, s.ResolvedAt });
+        b.HasIndex(s => new { s.SenderEmployeeId, s.CreatedAt });
+        b.HasIndex(s => s.NoteId);
+        b.HasIndex(s => s.ResolvedByEmployeeId);
     }
 }

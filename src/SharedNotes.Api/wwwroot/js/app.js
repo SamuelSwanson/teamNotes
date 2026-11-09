@@ -115,6 +115,7 @@ function renderNotes(notes) {
     const actions = li.querySelector('.actions');
     actions.append(el('button', { type: 'button', textContent: 'Edit', onclick: () => openEditor(n.noteId) }));
     actions.append(el('button', { type: 'button', textContent: 'History', onclick: () => openHistory(n) }));
+    actions.append(el('button', { type: 'button', textContent: 'Ask a team', onclick: () => openShout(n) }));
     if (n.canDelete) {
       actions.append(el('button', { type: 'button', className: 'danger', textContent: 'Delete', onclick: () => deleteNote(n) }));
     }
@@ -404,6 +405,7 @@ function endPresence() {
 function onNoteEvent(type, data) {
   if (type === 'notification') {   // delivered only to the recipient
     refreshUnread();
+    if ($('requests-dialog').open) renderRequests();
     if ($('notifications-dialog').open) renderNotifications();
     else showMessage(`New notification from ${data.actorName}.`);
     return;
@@ -537,7 +539,10 @@ async function openNotification(n) {
   try {
     if (!n.isRead) await api('POST', `/api/notifications/${n.notificationId}/read`);
     refreshUnread();
-    if (n.noteId) {
+    if (n.type === 'shout-out' || n.type === 'shout-out-resolved') {
+      $('notifications-dialog').close();
+      await openRequests(n.type === 'shout-out' ? 'inbox' : 'sent', true);
+    } else if (n.noteId) {
       $('notifications-dialog').close();
       await openEditor(n.noteId);   // fails with a clear message if the note is gone or no longer readable
     } else {
@@ -613,3 +618,100 @@ $('keep-mine').addEventListener('click', () => {
   $('save').disabled = false;
   $('note-form').requestSubmit();    // an ordinary save: still rejected if someone changes the note yet again
 });
+
+// ---------- Team requests (shout-outs) ----------
+
+let requestsBox = 'inbox';
+
+async function openRequests(box, includeResolved = false) {
+  requestsBox = box;
+  $('rq-resolved').checked = includeResolved;
+  try {
+    await renderRequests();
+    if (!$('requests-dialog').open) $('requests-dialog').showModal();
+  } catch (e) {
+    showMessage('Could not load requests: ' + e.message, true);
+  }
+}
+
+async function renderRequests() {
+  $('rq-tab-inbox').setAttribute('aria-pressed', requestsBox === 'inbox');
+  $('rq-tab-sent').setAttribute('aria-pressed', requestsBox === 'sent');
+  const status = $('rq-resolved').checked ? 'all' : 'open';
+  const items = await api('GET', `/api/shoutouts?box=${requestsBox}&status=${status}`);
+  $('rq-empty').classList.toggle('hidden', items.length > 0);
+  $('rq-list').replaceChildren(...items.map(renderRequest));
+}
+
+function renderRequest(s) {
+  const open = s.status === 'Open';
+  const who = requestsBox === 'inbox' ? `From ${s.senderName} to ${s.teamName}` : `To ${s.teamName}`;
+  const li = el('li', { className: 'request' + (open ? '' : ' done') },
+    el('div', { className: 'meta' },
+      el('span', { className: 'tag', textContent: s.kind }),
+      el('span', { textContent: who }),
+      el('span', { textContent: new Date(s.createdAt).toLocaleString() }),
+      ...(open ? [] : [el('span', { className: 'tag vis', textContent: 'Resolved' })])),
+    el('p', { textContent: s.message }));
+
+  if (s.noteId) {
+    li.append(el('button', { type: 'button', textContent: s.noteTitle ? `Open note: ${s.noteTitle}` : 'Open note',
+      onclick: async () => { $('requests-dialog').close(); await openEditor(s.noteId); } }));
+  }
+  if (!open) {
+    li.append(el('p', { className: 'hint', textContent: `Resolved by ${s.resolvedByName}` + (s.response ? `: ${s.response}` : '') }));
+  } else {
+    const response = el('input', { type: 'text', maxLength: 500, placeholder: 'Optional reply…', 'aria-label': 'Reply (optional)' });
+    li.append(el('div', { className: 'row' }, response,
+      el('button', { type: 'button', className: 'primary', textContent: 'Resolve', onclick: () => resolveRequest(s, response.value) })));
+  }
+  return li;
+}
+
+async function resolveRequest(s, response) {
+  try {
+    await api('POST', `/api/shoutouts/${s.shoutOutId}/resolve`, { response: response.trim() || null });
+    showMessage('Request resolved.');
+    await renderRequests();
+  } catch (e) {
+    showMessage(e.message, true);   // e.g. someone else resolved it first (409)
+    renderRequests();
+  }
+}
+
+let shoutNoteId = null;
+
+function openShout(note) {
+  shoutNoteId = note?.noteId ?? null;
+  $('shout-form').reset();
+  fillSelect($('s-team'), null, state.teams, 'teamId', 'name');
+  $('shout-note').textContent = note ? `About the note: “${note.title}”` : '';
+  $('shout-note').classList.toggle('hidden', !note);
+  $('shout-error').classList.add('hidden');
+  $('shout-dialog').showModal();
+}
+
+$('shout-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  $('s-send').disabled = true;
+  try {
+    await api('POST', `/api/teams/${$('s-team').value}/shoutouts`,
+      { kind: $('s-kind').value, message: $('s-message').value.trim(), noteId: shoutNoteId });
+    $('shout-dialog').close();
+    showMessage('Request sent to the team.');
+    if ($('requests-dialog').open) renderRequests();
+  } catch (e) {
+    $('shout-error').textContent = e.message;
+    $('shout-error').classList.remove('hidden');
+  } finally {
+    $('s-send').disabled = false;
+  }
+});
+
+$('requests-btn').addEventListener('click', () => openRequests('inbox'));
+$('rq-tab-inbox').addEventListener('click', () => { requestsBox = 'inbox'; renderRequests(); });
+$('rq-tab-sent').addEventListener('click', () => { requestsBox = 'sent'; renderRequests(); });
+$('rq-resolved').addEventListener('change', renderRequests);
+$('rq-new').addEventListener('click', () => openShout(null));
+$('rq-close').addEventListener('click', () => $('requests-dialog').close());
+$('s-cancel').addEventListener('click', () => $('shout-dialog').close());

@@ -4,6 +4,9 @@ public enum Visibility { Private, Team, All }
 
 public enum EmployeeRole { Employee, Admin }
 
+/// <summary>What the sender of a shout-out is asking the team to do.</summary>
+public enum ShoutOutKind { Review, Edit, Answer, Info }
+
 public class Employee
 {
     public int EmployeeId { get; set; }
@@ -120,6 +123,7 @@ public class Notification
     public string Message { get; set; } = "";
     public int? NoteId { get; set; }
     public int? TeamId { get; set; }
+    public int? ShoutOutId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ReadAt { get; set; }
 
@@ -127,4 +131,28 @@ public class Notification
     public Employee Actor { get; set; } = null!;
     public Note? Note { get; set; }
     public Team? Team { get; set; }
+    public ShoutOut? ShoutOut { get; set; }
+}
+
+/// <summary>
+/// A request from one employee to a whole team ("please review / edit / answer this"), optionally pointing at a note.
+/// Open until someone on the target team (or the sender) resolves it, optionally with a response.
+/// </summary>
+public class ShoutOut
+{
+    public int ShoutOutId { get; set; }
+    public int SenderEmployeeId { get; set; }
+    public int TeamId { get; set; }
+    public int? NoteId { get; set; }
+    public ShoutOutKind Kind { get; set; }
+    public string Message { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    public int? ResolvedByEmployeeId { get; set; }
+    public string? Response { get; set; }
+
+    public Employee Sender { get; set; } = null!;
+    public Team Team { get; set; } = null!;
+    public Note? Note { get; set; }
+    public Employee? ResolvedBy { get; set; }
 }

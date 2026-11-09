@@ -15,6 +15,7 @@ public class ApiException(int status, string title, string detail) : Exception(d
     public static ApiException Forbidden(string detail) => new(StatusCodes.Status403Forbidden, "Forbidden", detail);
     public static ApiException NotFound(string detail) => new(StatusCodes.Status404NotFound, "Not Found", detail);
     public static ApiException Conflict(string detail) => new(StatusCodes.Status409Conflict, "Conflict", detail);
+    public static ApiException TooManyRequests(string detail) => new(StatusCodes.Status429TooManyRequests, "Too Many Requests", detail);
 }
 
 public static class ProblemWriter
