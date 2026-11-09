@@ -38,7 +38,7 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
     public async Task<NoteDto> CreateAsync(NoteRequest r)
     {
         var visibility = r.Visibility!.Value;
-        var topicIds = await ValidateAsync(r);
+        var topics = await ValidateAsync(r);
         var now = DateTime.UtcNow;
 
         var note = new Note
@@ -52,8 +52,9 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
             CreatedAt = now,
             UpdatedAt = now,
             Version = Guid.NewGuid(),
-            NoteTopics = topicIds.Select(t => new NoteTopic { TopicId = t }).ToList(),
+            NoteTopics = topics.Select(t => new NoteTopic { TopicId = t.TopicId }).ToList(),
         };
+        note.Revisions.Add(Snapshot(note, "Created", await TeamNameAsync(note.TeamId), topics));
         db.Notes.Add(note);
         await db.SaveChangesAsync();
         return await GetDtoAsync(note.NoteId);
@@ -62,7 +63,7 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
     public async Task<NoteDto> UpdateAsync(int id, UpdateNoteRequest r)
     {
         await EnsureCanAccessAsync(id);
-        var topicIds = await ValidateAsync(r);
+        var topics = await ValidateAsync(r);
         var note = await db.Notes.Include(n => n.NoteTopics).FirstAsync(n => n.NoteId == id);
 
         var visibility = r.Visibility!.Value;
@@ -76,7 +77,7 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
         note.UpdatedAt = DateTime.UtcNow;
         note.UpdatedByEmployeeId = Me;
 
-        var wanted = topicIds.ToHashSet();
+        var wanted = topics.Select(t => t.TopicId).ToHashSet();
         foreach (var link in note.NoteTopics.Where(nt => !wanted.Contains(nt.TopicId)).ToList())
             note.NoteTopics.Remove(link);
         foreach (var topicId in wanted.Where(t => note.NoteTopics.All(nt => nt.TopicId != t)))
@@ -88,6 +89,7 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
         // and EF throws DbUpdateConcurrencyException. The check does not depend on the earlier read.
         db.Entry(note).Property(n => n.Version).OriginalValue = r.ExpectedVersion!.Value;
         note.Version = Guid.NewGuid();
+        note.Revisions.Add(Snapshot(note, "Updated", await TeamNameAsync(note.TeamId), topics));
 
         try
         {
@@ -133,7 +135,7 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
         await Project(db.Notes.AsNoTracking().Where(n => n.NoteId == id), Me).FirstAsync();
 
     /// <summary>Validates visibility/team/topic rules and returns the distinct topic ids.</summary>
-    private async Task<List<int>> ValidateAsync(NoteRequest r)
+    private async Task<List<Topic>> ValidateAsync(NoteRequest r)
     {
         var visibility = r.Visibility!.Value;
         if (!Enum.IsDefined(visibility)) throw ApiException.BadRequest("Visibility must be Private, Team or All.");
@@ -152,13 +154,54 @@ public class NoteService(AppDbContext db, CurrentEmployeeAccessor current)
         }
 
         var topicIds = (r.TopicIds ?? []).Distinct().ToList();
-        if (topicIds.Count > 0)
-        {
-            var found = await db.Topics.Where(t => topicIds.Contains(t.TopicId)).Select(t => t.TopicId).ToListAsync();
-            var missing = topicIds.Except(found).ToList();
-            if (missing.Count > 0) throw ApiException.BadRequest($"Unknown topic id(s): {string.Join(", ", missing)}.");
-        }
-        return topicIds;
+        if (topicIds.Count == 0) return [];
+
+        var found = await db.Topics.AsNoTracking().Where(t => topicIds.Contains(t.TopicId)).ToListAsync();
+        var missing = topicIds.Except(found.Select(t => t.TopicId)).ToList();
+        if (missing.Count > 0) throw ApiException.BadRequest($"Unknown topic id(s): {string.Join(", ", missing)}.");
+        return found;
+    }
+
+    /// <summary>
+    /// Records the note's state after a create/update. It is saved in the same transaction as the note change, so a
+    /// conflicting update (which rolls back) leaves no history row behind.
+    /// </summary>
+    private NoteRevision Snapshot(Note note, string action, string? teamName, IEnumerable<Topic> topics) => new()
+    {
+        Action = action,
+        Title = note.Title,
+        Content = note.Content,
+        Visibility = note.Visibility,
+        TeamName = teamName,
+        Topics = string.Join(", ", topics.Select(t => t.Name).Order()),
+        NoteVersion = note.Version,
+        EditedByEmployeeId = Me,
+        EditedAt = note.UpdatedAt,
+    };
+
+    private Task<string?> TeamNameAsync(int? teamId) =>
+        teamId is null ? Task.FromResult<string?>(null)
+            : db.Teams.Where(t => t.TeamId == teamId).Select(t => (string?)t.Name).FirstOrDefaultAsync();
+
+    public async Task<List<RevisionDto>> HistoryAsync(int id)
+    {
+        await EnsureCanAccessAsync(id);
+        return await db.NoteRevisions.AsNoTracking().Where(r => r.NoteId == id)
+            .OrderByDescending(r => r.RevisionId)
+            .Select(r => new RevisionDto
+            {
+                RevisionId = r.RevisionId,
+                Action = r.Action,
+                Title = r.Title,
+                Content = r.Content,
+                Visibility = r.Visibility,
+                TeamName = r.TeamName,
+                Topics = r.Topics,
+                NoteVersion = r.NoteVersion,
+                EditedByEmployeeId = r.EditedByEmployeeId,
+                EditedByName = r.EditedBy.Name,
+                EditedAt = r.EditedAt,
+            }).ToListAsync();
     }
 
     private static IQueryable<NoteDto> Project(IQueryable<Note> q, int me) => q.Select(n => new NoteDto

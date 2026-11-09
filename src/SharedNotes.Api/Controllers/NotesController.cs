@@ -14,6 +14,10 @@ public class NotesController(NoteService notes) : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<NoteDto>> Get(int id) => Ok(await notes.GetAsync(id));
 
+    /// <summary>Every saved state of the note, newest first. Same access rule as reading the note.</summary>
+    [HttpGet("{id:int}/history")]
+    public async Task<ActionResult<List<RevisionDto>>> History(int id) => Ok(await notes.HistoryAsync(id));
+
     [HttpPost]
     public async Task<ActionResult<NoteDto>> Create(NoteRequest request)
     {

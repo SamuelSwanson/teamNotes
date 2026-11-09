@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Topic> Topics => Set<Topic>();
     public DbSet<Note> Notes => Set<Note>();
     public DbSet<NoteTopic> NoteTopics => Set<NoteTopic>();
+    public DbSet<NoteRevision> NoteRevisions => Set<NoteRevision>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

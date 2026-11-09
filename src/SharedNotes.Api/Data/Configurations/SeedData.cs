@@ -47,6 +47,15 @@ public static class SeedData
         Note(4, "Campaign ideas", "Spring launch: short videos, customer stories, partner webinar.", 3, 2, Visibility.Team, "00000000-0000-0000-0000-000000000004"),
     ];
 
+    // One "Created" revision per seeded note, mirroring the note rows above.
+    public static readonly object[] Revisions =
+    [
+        Revision(1, 1, "My private to-do list", "Review PRs, update docs, book travel.", 1, Visibility.Private, null, "Planning", "00000000-0000-0000-0000-000000000001"),
+        Revision(2, 2, "Sprint planning", "Goals for the next sprint: finish the notes API and write tests.", 2, Visibility.Team, "Engineering", "Meeting Notes, Planning", "00000000-0000-0000-0000-000000000002"),
+        Revision(3, 3, "Company holiday schedule", "The office is closed on public holidays and the last Friday of each quarter.", 3, Visibility.All, null, "", "00000000-0000-0000-0000-000000000003"),
+        Revision(4, 4, "Campaign ideas", "Spring launch: short videos, customer stories, partner webinar.", 3, Visibility.Team, "Marketing", "Ideas", "00000000-0000-0000-0000-000000000004"),
+    ];
+
     public static readonly object[] NoteTopics =
     [
         new { NoteId = 1, TopicId = 1 },
@@ -54,6 +63,21 @@ public static class SeedData
         new { NoteId = 2, TopicId = 2 },
         new { NoteId = 4, TopicId = 3 },
     ];
+
+    private static object Revision(int id, int noteId, string title, string content, int editedBy, Visibility visibility, string? teamName, string topics, string version) => new
+    {
+        RevisionId = id,
+        NoteId = noteId,
+        Action = "Created",
+        Title = title,
+        Content = content,
+        Visibility = visibility,
+        TeamName = teamName,
+        Topics = topics,
+        NoteVersion = Guid.Parse(version),
+        EditedByEmployeeId = editedBy,
+        EditedAt = Seeded,
+    };
 
     private static object Note(int id, string title, string content, int createdBy, int? teamId, Visibility visibility, string version) => new
     {

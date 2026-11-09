@@ -78,6 +78,26 @@ public class NoteConfiguration : IEntityTypeConfiguration<Note>
     }
 }
 
+public class NoteRevisionConfiguration : IEntityTypeConfiguration<NoteRevision>
+{
+    public void Configure(EntityTypeBuilder<NoteRevision> b)
+    {
+        b.HasKey(r => r.RevisionId);
+        b.Property(r => r.Action).IsRequired().HasMaxLength(10);
+        b.Property(r => r.Title).IsRequired().HasMaxLength(200);
+        b.Property(r => r.Content).IsRequired().HasMaxLength(20000);
+        b.Property(r => r.Visibility).HasConversion<string>().HasMaxLength(10);
+        b.Property(r => r.TeamName).HasMaxLength(100);
+        b.Property(r => r.Topics).IsRequired().HasMaxLength(2000);
+        // History belongs to the note: it is removed with the note. Editors cannot be deleted while history references them.
+        b.HasOne(r => r.Note).WithMany(n => n.Revisions).HasForeignKey(r => r.NoteId).OnDelete(DeleteBehavior.Cascade);
+        b.HasOne(r => r.EditedBy).WithMany().HasForeignKey(r => r.EditedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(r => r.NoteId);
+        b.HasIndex(r => r.EditedByEmployeeId);
+        b.HasData(SeedData.Revisions);
+    }
+}
+
 public class NoteTopicConfiguration : IEntityTypeConfiguration<NoteTopic>
 {
     public void Configure(EntityTypeBuilder<NoteTopic> b)

@@ -51,6 +51,21 @@ public class NoteDto
     public bool CanDelete { get; set; }
 }
 
+public class RevisionDto
+{
+    public int RevisionId { get; set; }
+    public string Action { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Content { get; set; } = "";
+    public Visibility Visibility { get; set; }
+    public string? TeamName { get; set; }
+    public string Topics { get; set; } = "";
+    public Guid NoteVersion { get; set; }
+    public int EditedByEmployeeId { get; set; }
+    public string EditedByName { get; set; } = "";
+    public DateTime EditedAt { get; set; }
+}
+
 // ---------- Topics ----------
 
 public class TopicRequest

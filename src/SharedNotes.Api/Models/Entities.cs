@@ -59,6 +59,26 @@ public class Note
     public Employee UpdatedBy { get; set; } = null!;
     public Team? Team { get; set; }
     public List<NoteTopic> NoteTopics { get; set; } = [];
+    public List<NoteRevision> Revisions { get; set; } = [];
+}
+
+/// <summary>Immutable snapshot of a note after a create or update (one row per change). Deleted with its note.</summary>
+public class NoteRevision
+{
+    public int RevisionId { get; set; }
+    public int NoteId { get; set; }
+    public string Action { get; set; } = "";   // "Created" or "Updated"
+    public string Title { get; set; } = "";
+    public string Content { get; set; } = "";
+    public Visibility Visibility { get; set; }
+    public string? TeamName { get; set; }
+    public string Topics { get; set; } = "";   // topic names, comma-separated, as they were at the time
+    public Guid NoteVersion { get; set; }
+    public int EditedByEmployeeId { get; set; }
+    public DateTime EditedAt { get; set; }
+
+    public Note Note { get; set; } = null!;
+    public Employee EditedBy { get; set; } = null!;
 }
 
 public class NoteTopic

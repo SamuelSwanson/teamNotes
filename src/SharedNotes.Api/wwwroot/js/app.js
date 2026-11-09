@@ -104,6 +104,7 @@ function renderNotes(notes) {
       el('div', { className: 'actions' }));
     const actions = li.querySelector('.actions');
     actions.append(el('button', { type: 'button', textContent: 'Edit', onclick: () => openEditor(n.noteId) }));
+    actions.append(el('button', { type: 'button', textContent: 'History', onclick: () => openHistory(n) }));
     if (n.canDelete) {
       actions.append(el('button', { type: 'button', className: 'danger', textContent: 'Delete', onclick: () => deleteNote(n) }));
     }
@@ -313,3 +314,26 @@ function init() {
 }
 
 init();
+
+// ---------- History ----------
+
+async function openHistory(note) {
+  $('history-title').textContent = `History: ${note.title}`;
+  $('history-list').replaceChildren(el('p', { textContent: 'Loading…' }));
+  $('history-dialog').showModal();
+  try {
+    const revisions = await api('GET', `/api/notes/${note.noteId}/history`);
+    $('history-list').replaceChildren(...revisions.map((r) => {
+      const where = r.visibility === 'Team' ? `Team: ${r.teamName}` : r.visibility;
+      const details = el('details', { className: 'revision' },
+        el('summary', { textContent: `${r.action} by ${r.editedByName}, ${new Date(r.editedAt).toLocaleString()}: ${r.title}` }),
+        el('div', { className: 'meta', textContent: `${where}${r.topics ? ' · Topics: ' + r.topics : ''}` }),
+        el('pre', { textContent: r.content }));
+      return details;
+    }));
+  } catch (e) {
+    $('history-list').replaceChildren(el('p', { className: 'message error', textContent: e.message }));
+  }
+}
+
+$('history-close').addEventListener('click', () => $('history-dialog').close());

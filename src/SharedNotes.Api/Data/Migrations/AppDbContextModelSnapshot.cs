@@ -198,6 +198,118 @@ namespace SharedNotes.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SharedNotes.Api.Models.NoteRevision", b =>
+                {
+                    b.Property<int>("RevisionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("EditedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EditedByEmployeeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("NoteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("NoteVersion")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TeamName")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Topics")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("RevisionId");
+
+                    b.HasIndex("EditedByEmployeeId");
+
+                    b.HasIndex("NoteId");
+
+                    b.ToTable("NoteRevisions");
+
+                    b.HasData(
+                        new
+                        {
+                            RevisionId = 1,
+                            Action = "Created",
+                            Content = "Review PRs, update docs, book travel.",
+                            EditedAt = new DateTime(2026, 1, 5, 9, 0, 0, 0, DateTimeKind.Utc),
+                            EditedByEmployeeId = 1,
+                            NoteId = 1,
+                            NoteVersion = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Title = "My private to-do list",
+                            Topics = "Planning",
+                            Visibility = "Private"
+                        },
+                        new
+                        {
+                            RevisionId = 2,
+                            Action = "Created",
+                            Content = "Goals for the next sprint: finish the notes API and write tests.",
+                            EditedAt = new DateTime(2026, 1, 5, 9, 0, 0, 0, DateTimeKind.Utc),
+                            EditedByEmployeeId = 2,
+                            NoteId = 2,
+                            NoteVersion = new Guid("00000000-0000-0000-0000-000000000002"),
+                            TeamName = "Engineering",
+                            Title = "Sprint planning",
+                            Topics = "Meeting Notes, Planning",
+                            Visibility = "Team"
+                        },
+                        new
+                        {
+                            RevisionId = 3,
+                            Action = "Created",
+                            Content = "The office is closed on public holidays and the last Friday of each quarter.",
+                            EditedAt = new DateTime(2026, 1, 5, 9, 0, 0, 0, DateTimeKind.Utc),
+                            EditedByEmployeeId = 3,
+                            NoteId = 3,
+                            NoteVersion = new Guid("00000000-0000-0000-0000-000000000003"),
+                            Title = "Company holiday schedule",
+                            Topics = "",
+                            Visibility = "All"
+                        },
+                        new
+                        {
+                            RevisionId = 4,
+                            Action = "Created",
+                            Content = "Spring launch: short videos, customer stories, partner webinar.",
+                            EditedAt = new DateTime(2026, 1, 5, 9, 0, 0, 0, DateTimeKind.Utc),
+                            EditedByEmployeeId = 3,
+                            NoteId = 4,
+                            NoteVersion = new Guid("00000000-0000-0000-0000-000000000004"),
+                            TeamName = "Marketing",
+                            Title = "Campaign ideas",
+                            Topics = "Ideas",
+                            Visibility = "Team"
+                        });
+                });
+
             modelBuilder.Entity("SharedNotes.Api.Models.NoteTopic", b =>
                 {
                     b.Property<int>("NoteId")
@@ -384,6 +496,25 @@ namespace SharedNotes.Api.Data.Migrations
                     b.Navigation("UpdatedBy");
                 });
 
+            modelBuilder.Entity("SharedNotes.Api.Models.NoteRevision", b =>
+                {
+                    b.HasOne("SharedNotes.Api.Models.Employee", "EditedBy")
+                        .WithMany()
+                        .HasForeignKey("EditedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SharedNotes.Api.Models.Note", "Note")
+                        .WithMany("Revisions")
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EditedBy");
+
+                    b.Navigation("Note");
+                });
+
             modelBuilder.Entity("SharedNotes.Api.Models.NoteTopic", b =>
                 {
                     b.HasOne("SharedNotes.Api.Models.Note", "Note")
@@ -430,6 +561,8 @@ namespace SharedNotes.Api.Data.Migrations
             modelBuilder.Entity("SharedNotes.Api.Models.Note", b =>
                 {
                     b.Navigation("NoteTopics");
+
+                    b.Navigation("Revisions");
                 });
 
             modelBuilder.Entity("SharedNotes.Api.Models.Team", b =>

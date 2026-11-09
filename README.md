@@ -51,6 +51,7 @@ tests/SharedNotes.Tests/
 - **Notes** – `NoteId`, `Title`, `Content`, `CreatedByEmployeeId`, `UpdatedByEmployeeId`, `TeamId?`, `Visibility` (`Private`/`Team`/`All`), `CreatedAt`, `UpdatedAt`, `Version` (GUID concurrency token). A CHECK constraint enforces "`TeamId` is set exactly when `Visibility = 'Team'`".
 - **Topics** – `TopicId`, `Name` (unique, case-insensitive), `Description?`.
 - **NoteTopics** – join table, composite key (`NoteId`, `TopicId`).
+- **NoteRevisions** – one immutable snapshot per create/update (title, content, visibility, team name, topic names, the note `Version` it produced, who and when). Cascade-deleted with the note.
 
 Delete behaviour: deleting a note, topic, team or employee **cascades only to join rows** (`NoteTopics`, `TeamMembers`). Notes reference employees and teams with `RESTRICT`, so nobody can be deleted out from under a note. (There are no endpoints to delete employees or teams.)
 
@@ -62,6 +63,8 @@ erDiagram
     Teams |o--o{ Notes : "shared with"
     Notes ||--o{ NoteTopics : "tagged"
     Topics ||--o{ NoteTopics : "applied to"
+    Notes ||--o{ NoteRevisions : "history"
+    Employees ||--o{ NoteRevisions : "edited by"
     Employees { int EmployeeId PK
         string Name
         string Email UK
@@ -87,6 +90,14 @@ erDiagram
         string Description }
     NoteTopics { int NoteId PK,FK
         int TopicId PK,FK }
+    NoteRevisions { int RevisionId PK
+        int NoteId FK
+        string Action
+        string Title
+        string Content
+        guid NoteVersion
+        int EditedByEmployeeId FK
+        datetime EditedAt }
 ```
 
 ## Running locally
@@ -168,6 +179,7 @@ curl -b cookies.txt http://localhost:5115/api/notes
 | `POST /api/notes` | Body: `title`, `content`, `visibility`, `teamId` (required for `Team`, must be null otherwise), `topicIds?`. `201`; `400` bad input or unknown topic/team; `403` if not a member of `teamId`. Creator/updater come from the header, never the body. |
 | `PUT /api/notes/{id}` | Same body plus **`expectedVersion`** (required). `200` with the new `version`; `403` no access (or non-creator changing visibility/team); `409` if `expectedVersion` is stale. |
 | `DELETE /api/notes/{id}` | Creator only. `204`; `403`; `404`. |
+| `GET /api/notes/{id}/history` | Every saved state of the note, newest first (`action`, `title`, `content`, `visibility`, `teamName`, `topics`, `noteVersion`, editor, `editedAt`). Same access rule as reading the note: `403`/`404` accordingly. |
 
 Note responses include `version`, `canDelete`, `topics`, creator/updater ids and names, `createdAt`, `updatedAt`.
 
@@ -214,7 +226,7 @@ A stale `expectedVersion` returns `409 Conflict`; re-`GET` the note, reapply you
 - **403 vs 404:** a note that exists but is not visible to you returns `403` (predictable, as the spec's status list suggests). This reveals that the id exists; returning `404` instead would hide it.
 - **Editing = reading:** anyone who can read a note can edit it. Only the creator can delete it or change its visibility/team.
 - **Directory data:** any signed-in employee can create teams and topics; roles above govern the rest.
-- **Audit:** `CreatedAt/By` and `UpdatedAt/By` live directly on `Notes`. A full audit history could be added later; none is implemented.
+- **Audit and history:** `CreatedAt/By` and `UpdatedAt/By` stay on `Notes` for quick display. In addition, every create and update writes an immutable snapshot to `NoteRevisions` in the same transaction as the note change, so a rejected (409) update leaves no history. History is readable by anyone who can read the note, and is deleted with the note. Restoring an old revision is not implemented; copy the content from the History view.
 
 ## Design decisions
 
@@ -248,7 +260,6 @@ A stale `expectedVersion` returns `409 Conflict`; re-`GET` the note, reapply you
 Not implemented, but worth doing with more time:
 
 - Further hardening of sign-in: account lockout, password reset by email, multi-factor authentication, single sign-on.
-- Note history / audit log.
 - Real-time collaboration or presence indicators.
 - Real full-text search (SQLite FTS5 or a search engine) and pagination.
 - Attachments and notifications.
